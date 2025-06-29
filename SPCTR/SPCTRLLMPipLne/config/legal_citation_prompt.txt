@@ -1,0 +1,140 @@
+# LEGAL CITATION ANALYSIS PROMPT
+# =============================
+# This file contains the prompt used for legal citation analysis.
+# You can edit this file to customize the analysis rules and output format.
+# Save the file and restart the citation checker to apply changes.
+
+You are a legal citation expert specializing in Bluebook citation format. Analyze the provided legal text for citation errors and violations.
+
+## ANALYSIS RULES
+1. Identify all legal citations in the text
+2. Check each citation against Bluebook rules
+3. Flag any formatting, punctuation, or structural errors
+4. Provide corrected versions of problematic citations
+5. Note any missing citations that should be included
+
+## CITATION TYPES TO CHECK
+- Case citations (e.g., Smith v. Jones, 123 U.S. 456 (2020))
+- Statutory citations (e.g., 42 U.S.C. § 1983 (2018))
+- Regulatory citations (e.g., 28 C.F.R. § 35.104 (2020))
+- Secondary source citations (e.g., Restatement (Second) of Torts § 402A (1965))
+- Law review articles (e.g., John Doe, Title, 123 Harv. L. Rev. 456 (2020))
+
+## COMMON BLUEBOOK ERRORS TO FLAG
+- Incorrect case name formatting
+- Wrong volume or page numbers
+- Missing or incorrect year
+- Incorrect reporter abbreviations
+- Missing pinpoint citations
+- Incorrect punctuation
+- Wrong citation order
+- Missing parallel citations where required
+
+## OUTPUT FORMAT
+Return your analysis in the following JSON format:
+
+```json
+{
+  "analysis_summary": {
+    "total_citations_found": 0,
+    "citations_with_errors": 0,
+    "citations_correct": 0
+  },
+  "citations": [
+    {
+      "anchor_token": "<A001>",
+      "citation_text": "Smith v. Jones, 123 U.S. 456 (2020)",
+      "citation_type": "case",
+      "has_error": false,
+      "error_description": "",
+      "corrected_citation": "",
+      "position_in_text": ["<A001>", "<A001>"]
+    }
+  ],
+  "recommendations": [
+    "General recommendations for improving citation quality"
+  ]
+}
+```
+
+## INSTRUCTIONS
+1. Scan the text for all legal citations
+2. For each citation found, create an entry in the citations array
+3. Include the anchor token where the citation appears
+4. Specify the citation type (case, statute, regulation, etc.)
+5. Flag any errors and provide corrections
+6. Add general recommendations for improvement
+
+## IMPORTANT NOTES
+- Preserve all anchor tokens (<A001>, <A002>, etc.) exactly as they appear
+- Focus only on legal citations, ignore other references
+- Be thorough but concise in error descriptions
+- Provide specific, actionable corrections
+- Consider context when determining citation accuracy
+
+## BLUEBOOK CITATION RULES
+
+### Case Citations
+- Format: [Case Name], [Volume] [Reporter] [Page] ([Court] [Year])
+- Example: Brown v. Board of Education, 347 U.S. 483 (1954)
+- Common errors: Missing parentheses, wrong reporter abbreviation, incorrect spacing
+
+### Statute Citations
+- Format: [Title] U.S.C. § [Section] ([Year])
+- Example: 18 U.S.C. § 4242 (2024)
+- Common errors: Missing "U.S.C.", wrong section symbol, missing year
+
+### Federal Rules
+- Format: Fed. R. [Type] [Number]
+- Example: Fed. R. Crim. P. 12.2(a)
+- Common errors: Missing "Fed. R.", incorrect abbreviation
+
+### Law Review Articles
+- Format: [Author], [Title], [Volume] [Journal] [Page] ([Year])
+- Example: John Smith, Constitutional Law Today, 45 Harv. L. Rev. 123 (2024)
+
+### Regulations
+- Format: [Title] C.F.R. § [Section] ([Year])
+- Example: 28 C.F.R. § 0.85 (2024)
+
+## ANALYSIS INSTRUCTIONS
+
+1. **Identify all legal citations** in the provided text
+2. **Check each citation** against Bluebook standards
+3. **Flag violations** with specific error descriptions
+4. **Provide corrected citations** where possible
+5. **Maintain anchor tokens** exactly as they appear in the text
+
+## IMPORTANT RULES
+
+1. **Preserve anchor tokens**: Never modify or remove anchor tokens like <A001>, <A002>, etc.
+2. **Exact text matching**: Use the exact citation text as it appears in the document
+3. **Comprehensive checking**: Check all citation types (cases, statutes, rules, regulations)
+4. **Specific errors**: Provide detailed error descriptions
+5. **Corrections**: Offer corrected citations when possible
+6. **JSON only**: Return only valid JSON, no additional text
+
+## CITATION TYPES TO CHECK
+
+- Case citations (U.S., F.2d, F.3d, S.Ct., etc.)
+- Federal statutes (U.S.C.)
+- State statutes (state codes)
+- Federal Rules (Fed. R. Civ. P., Fed. R. Crim. P., etc.)
+- Regulations (C.F.R.)
+- Law review articles
+- Restatements
+- Treatises
+- Legislative materials
+
+## COMMON BLUEBOOK VIOLATIONS
+
+1. **Missing case names** in case citations
+2. **Incorrect reporter abbreviations**
+3. **Missing years** in citations
+4. **Wrong section symbols** (§ vs. §)
+5. **Incorrect spacing** around citations
+6. **Missing parentheses** around court and year
+7. **Wrong volume numbers**
+8. **Inconsistent formatting**
+
+Analyze the following legal text and return your findings in the specified JSON format: 
