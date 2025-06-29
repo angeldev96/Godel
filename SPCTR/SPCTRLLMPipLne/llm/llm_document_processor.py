@@ -6,15 +6,18 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import json
 
-from config import config
-from llm_client import LLMClient
-from xml_to_anchored_txt import xml_to_anchored_txt
-from anchored_txt_to_xml import anchored_txt_to_xml
-from extract_docx_xml import extract_docx_xml
-from repackage_docx_xml import repackage_docx_xml
-from legal_citation_checker import LegalCitationChecker
+# Add parent directory to path to import from core and config folders
+sys.path.append(str(Path(__file__).parent.parent))
 
-HANDSHAKE_STATUS_FILE = Path(__file__).parent / '.llm_handshake_status.json'
+from config.config import config
+from llm.llm_client import LLMClient
+from core.xml_to_anchored_txt import xml_to_anchored_txt
+from core.anchored_txt_to_xml import anchored_txt_to_xml
+from core.extract_docx_xml import extract_docx_xml
+from core.repackage_docx_xml import repackage_docx_xml
+from llm.legal_citation_checker import LegalCitationChecker
+
+HANDSHAKE_STATUS_FILE = Path(__file__).parent.parent / '.llm_handshake_status.json'
 
 def get_handshake_status():
     if HANDSHAKE_STATUS_FILE.exists():

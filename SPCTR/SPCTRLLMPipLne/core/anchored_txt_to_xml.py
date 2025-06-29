@@ -33,7 +33,7 @@ def anchored_txt_to_xml(txt_path, original_xml_path, output_xml=None):
     namespaces = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
     
     # Split anchored text into paragraphs
-    paragraphs = re.split(r'<A\d{3}>', anchored_text)
+    paragraphs = re.split(r'⟦P-\d{5}⟧', anchored_text)
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
     
     # Get original paragraphs

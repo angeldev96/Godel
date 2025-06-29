@@ -7,11 +7,14 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from config import config
-from llm_client import LLMClient
-from token_estimator import TokenEstimator
-from xml_to_anchored_txt import xml_to_anchored_txt
-from extract_docx_xml import extract_docx_xml
+# Add parent directory to path to import from core and config folders
+sys.path.append(str(Path(__file__).parent.parent))
+
+from config.config import config
+from llm.llm_client import LLMClient
+from llm.token_estimator import TokenEstimator
+from core.xml_to_anchored_txt import xml_to_anchored_txt
+from core.extract_docx_xml import extract_docx_xml
 
 class LegalCitationChecker:
     """Main legal citation checker with Bluebook compliance analysis"""
@@ -33,7 +36,7 @@ class LegalCitationChecker:
         else:
             print("[DEBUG] No API key loaded in LegalCitationChecker")
         self.token_estimator = TokenEstimator(model)
-        self.prompt_file = Path(__file__).parent / "legal_citation_prompt.txt"
+        self.prompt_file = Path(__file__).parent.parent / "config" / "legal_citation_prompt.txt"
         self.default_prompt = self._load_default_prompt()
         
     def _load_default_prompt(self) -> str:

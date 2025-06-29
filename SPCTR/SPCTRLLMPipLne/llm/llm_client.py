@@ -5,7 +5,7 @@ import json
 import requests
 import time
 from typing import List, Dict, Any, Optional
-from config import config
+from config.config import config
 
 class LLMClient:
     """Client for Llama LLM API integration"""

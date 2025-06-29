@@ -29,7 +29,7 @@ def xml_to_anchored_txt(xml_path, output_txt=None):
     
     for paragraph in root.findall('.//w:p', namespaces):
         paragraph_counter += 1
-        anchor_token = f"<A{paragraph_counter:03d}>"
+        anchor_token = f"⟦P-{paragraph_counter:05d}⟧"
         
         # Extract text from this paragraph
         paragraph_text = extract_paragraph_text(paragraph, namespaces)

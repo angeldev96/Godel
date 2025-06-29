@@ -20,8 +20,8 @@ class Config:
         if api_key:
             return api_key
         
-        # Then try config file
-        config_file = Path(__file__).parent / '.env'
+        # Then try config file in parent directory (root)
+        config_file = Path(__file__).parent.parent / '.env'
         if config_file.exists():
             try:
                 with open(config_file, 'r') as f:
@@ -40,7 +40,7 @@ class Config:
     
     def save_api_key_to_file(self, api_key: str):
         """Save API key to .env file"""
-        config_file = Path(__file__).parent / '.env'
+        config_file = Path(__file__).parent.parent / '.env'
         try:
             with open(config_file, 'w') as f:
                 f.write(f'LLAMA_API_KEY={api_key}\n')

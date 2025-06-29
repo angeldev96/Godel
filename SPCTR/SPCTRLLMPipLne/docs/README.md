@@ -26,33 +26,169 @@ A comprehensive document processing pipeline that extracts text from Word docume
 
 ```
 SPCTRLLMPipLne/
-├── Core Processing/
-│   ├── extract_docx_xml.py          # Extract raw XML from DOCX
-│   ├── xml_to_anchored_txt.py       # Convert XML to anchored text
-│   ├── anchored_txt_to_xml.py       # Convert anchored text back to XML
-│   └── repackage_docx_xml.py        # Reconstruct DOCX from XML
+├── core/                           # Core document processing modules
+│   ├── extract_docx_xml.py         # Extract raw XML from DOCX files
+│   ├── xml_to_anchored_txt.py      # Convert XML to anchored text with tokens
+│   ├── anchored_txt_to_xml.py      # Convert anchored text back to XML
+│   ├── repackage_docx_xml.py       # Reconstruct DOCX from modified XML
+│   ├── docx_extractor.py           # Enhanced DOCX text extraction with formatting
+│   ├── docx_reconstructor.py       # DOCX reconstruction with formatting preservation
+│   └── xml_analyzer.py             # XML structure analysis and debugging
 │
-├── LLM Integration/
-│   ├── llm_client.py                # LLM API client with retry logic
-│   ├── llm_document_processor.py    # Main CLI interface
-│   ├── legal_citation_checker.py    # Legal citation analysis
-│   └── token_estimator.py           # Token counting and batching
+├── llm/                            # LLM integration and processing
+│   ├── llm_client.py               # LLM API client with retry logic and timeout handling
+│   ├── llm_document_processor.py   # Main CLI interface for all LLM operations
+│   ├── legal_citation_checker.py   # Legal citation analysis with Bluebook compliance
+│   ├── token_estimator.py          # Token counting, batching, and context management
+│   └── prompt_editor.py            # Utility for managing and editing LLM prompts
 │
-├── Configuration/
-│   ├── config.py                    # API key and settings management
-│   ├── legal_citation_prompt.txt    # Configurable citation analysis prompt
-│   └── prompt_editor.py             # Prompt management utility
+├── config/                         # Configuration and settings
+│   ├── config.py                   # API key management and global settings
+│   └── legal_citation_prompt.txt   # Configurable prompt for citation analysis
 │
-├── Utilities/
-│   ├── xml_analyzer.py              # XML structure analysis
-│   └── cleanup_test_files.py        # Cleanup utility
+├── utils/                          # Utility scripts and testing
+│   ├── cleanup_test_files.py       # Cleanup utility for temporary files
+│   └── test_llm_integration.py     # Test script for LLM API integration
 │
-└── Documentation/
-    ├── README.md                    # This file
-    ├── ANCHOR_PIPELINE_README.md    # Technical details
-    ├── LLM_INTEGRATION_README.md    # LLM setup guide
-    └── COMPLETE_SYSTEM_README.md    # Complete system overview
+├── docs/                           # Documentation
+│   ├── README.md                   # This file - main project documentation
+│   ├── ANCHOR_PIPELINE_README.md   # Technical details of XML preservation system
+│   ├── LLM_INTEGRATION_README.md   # LLM API setup and usage guide
+│   └── COMPLETE_SYSTEM_README.md   # Complete system architecture overview
+│
+├── .gitignore                      # Git ignore rules
+├── requirements.txt                # Python dependencies
+└── .llm_handshake_status.json     # API connection status cache
 ```
+
+## 🔧 Core Module Details
+
+### `core/` - Document Processing Pipeline
+
+**`extract_docx_xml.py`**
+- Extracts the raw `word/document.xml` from DOCX files
+- Saves XML as `.txt` file for processing
+- Returns the output file path for pipeline integration
+
+**`xml_to_anchored_txt.py`**
+- Converts XML to text with invisible anchor tokens (`<A001>`, `<A002>`, etc.)
+- Preserves formatting tags (`<bold>`, `<italic>`, `<underline>`, etc.)
+- Maintains paragraph structure and document hierarchy
+- Essential for LLM processing with context preservation
+
+**`anchored_txt_to_xml.py`**
+- Converts processed anchored text back to XML format
+- Reconstructs document structure from LLM-modified text
+- Preserves all formatting and anchor tokens
+
+**`repackage_docx_xml.py`**
+- Reconstructs complete DOCX files from modified XML
+- Maintains all original document properties and relationships
+- Enables round-trip document processing
+
+**`docx_extractor.py`**
+- Advanced DOCX text extraction with enhanced formatting preservation
+- Handles justification, tabs, footnotes, and complex formatting
+- Extracts footnotes as inline parentheticals
+- Preserves superscript numbers and special formatting
+
+**`docx_reconstructor.py`**
+- Reconstructs DOCX files with enhanced formatting preservation
+- Maintains original document structure and properties
+- Handles complex formatting elements and relationships
+
+**`xml_analyzer.py`**
+- Analyzes XML structure for debugging and development
+- Provides detailed insights into document formatting
+- Useful for troubleshooting and optimization
+
+## 🤖 LLM Module Details
+
+### `llm/` - AI Integration and Processing
+
+**`llm_client.py`**
+- LLM API client with robust error handling and retry logic
+- Supports chat completion, document editing, and analysis
+- Configurable timeouts and connection management
+- Handles API responses and JSON parsing
+
+**`llm_document_processor.py`**
+- Main CLI interface for all LLM-powered operations
+- Commands: setup, test, handshake, edit, analyze, check-citations, prompt-editor
+- Integrates all pipeline components for seamless operation
+- Provides debug mode and comprehensive error reporting
+
+**`legal_citation_checker.py`**
+- Bluebook-compliant legal citation analysis
+- Identifies citation errors and provides corrections
+- Supports batching for large documents
+- Returns structured JSON results with detailed analysis
+
+**`token_estimator.py`**
+- Intelligent token counting and context management
+- Determines when batching is needed for large documents
+- Optimizes API usage and prevents token limit errors
+- Provides detailed token analysis and utilization statistics
+
+**`prompt_editor.py`**
+- Utility for managing and editing LLM prompts
+- Supports listing, viewing, editing, and creating prompts
+- Enables easy customization of LLM behavior
+- Integrates with main processor for seamless prompt management
+
+## ⚙️ Configuration Details
+
+### `config/` - Settings and Configuration
+
+**`config.py`**
+- API key management with environment variable support
+- Global settings for model, timeout, and base URL
+- Secure key storage and retrieval
+- Configuration validation and error handling
+
+**`legal_citation_prompt.txt`**
+- Configurable prompt for legal citation analysis
+- Defines Bluebook rules and error detection criteria
+- Specifies JSON output format and analysis structure
+- Easily editable for customization
+
+## 🛠️ Utility Details
+
+### `utils/` - Helper Scripts and Testing
+
+**`cleanup_test_files.py`**
+- Removes temporary and test files
+- Cleans up intermediate processing files
+- Maintains clean project directory
+
+**`test_llm_integration.py`**
+- Tests LLM API connectivity and functionality
+- Validates API key configuration
+- Provides basic integration testing
+
+## 📚 Documentation Details
+
+### `docs/` - Comprehensive Documentation
+
+**`README.md`** (This file)
+- Main project documentation and user guide
+- Installation and usage instructions
+- Feature overview and command reference
+
+**`ANCHOR_PIPELINE_README.md`**
+- Technical details of XML preservation system
+- Anchor token implementation and usage
+- Pipeline architecture and data flow
+
+**`LLM_INTEGRATION_README.md`**
+- LLM API setup and configuration guide
+- Model selection and parameter tuning
+- Troubleshooting and best practices
+
+**`COMPLETE_SYSTEM_README.md`**
+- Complete system architecture overview
+- Component interaction and data flow
+- Development and extension guidelines
 
 ## 🛠️ Installation
 
@@ -69,7 +205,7 @@ SPCTRLLMPipLne/
 
 3. **Configure API key**
    ```bash
-   python llm_document_processor.py setup
+   python llm/llm_document_processor.py setup
    ```
    Or manually create a `.env` file:
    ```
@@ -81,48 +217,48 @@ SPCTRLLMPipLne/
 ### Basic Document Processing
 ```bash
 # Extract XML from DOCX
-python extract_docx_xml.py "document.docx"
+python core/extract_docx_xml.py "document.docx"
 
 # Convert to anchored text
-python xml_to_anchored_txt.py "document_raw.xml.txt"
+python core/xml_to_anchored_txt.py "document_raw.xml.txt"
 
 # Reconstruct DOCX
-python repackage_docx_xml.py "document.docx" "document_raw.xml.txt"
+python core/repackage_docx_xml.py "document.docx" "document_raw.xml.txt"
 ```
 
 ### LLM-Powered Analysis
 ```bash
 # Test API connection
-python llm_document_processor.py handshake
+python llm/llm_document_processor.py handshake
 
 # Check legal citations
-python llm_document_processor.py check-citations "document.docx" --debug
+python llm/llm_document_processor.py check-citations "document.docx" --debug
 
 # Edit document
-python llm_document_processor.py edit "document.docx" "Make the text more formal"
+python llm/llm_document_processor.py edit "document.docx" "Make the text more formal"
 
 # Analyze document
-python llm_document_processor.py analyze "document.docx" legal
+python llm/llm_document_processor.py analyze "document.docx" legal
 ```
 
 ### Prompt Management
 ```bash
 # List available prompts
-python llm_document_processor.py prompt-editor list
+python llm/llm_document_processor.py prompt-editor list
 
 # View citation prompt
-python llm_document_processor.py prompt-editor show legal_citation
+python llm/llm_document_processor.py prompt-editor show legal_citation
 
 # Edit citation prompt
-python llm_document_processor.py prompt-editor edit legal_citation
+python llm/llm_document_processor.py prompt-editor edit legal_citation
 
 # Create new prompt
-python llm_document_processor.py prompt-editor create custom_analysis
+python llm/llm_document_processor.py prompt-editor create custom_analysis
 ```
 
 ## 📋 Command Reference
 
-### Main Processor Commands
+### Main Processor Commands (`llm/llm_document_processor.py`)
 - `setup` - Configure API key
 - `test` - Test API connection
 - `handshake` - Verify API connectivity
@@ -131,11 +267,15 @@ python llm_document_processor.py prompt-editor create custom_analysis
 - `check-citations <docx> [output.json] [--debug]` - Check legal citations
 - `prompt-editor` - Manage LLM prompts
 
-### Prompt Editor Commands
-- `list` - List all available prompts
-- `show <name>` - Show prompt content
-- `edit <name>` - Edit prompt file
-- `create <name>` - Create new prompt
+### Core Processing Commands
+- `core/extract_docx_xml.py <docx>` - Extract XML from DOCX
+- `core/xml_to_anchored_txt.py <xml>` - Convert XML to anchored text
+- `core/anchored_txt_to_xml.py <txt>` - Convert anchored text to XML
+- `core/repackage_docx_xml.py <docx> <xml>` - Reconstruct DOCX
+
+### Utility Commands
+- `utils/cleanup_test_files.py` - Clean up temporary files
+- `utils/test_llm_integration.py` - Test LLM integration
 
 ## 🔧 Configuration
 
@@ -146,13 +286,12 @@ LLAMA_API_KEY=your-api-key-here
 ```
 
 ### Prompt Customization
-All LLM prompts are stored in `.txt` files and can be easily edited:
-- `legal_citation_prompt.txt` - Legal citation analysis rules
-- `document_edit_prompt.txt` - Document editing instructions
-- `document_analyze_prompt.txt` - Document analysis guidelines
+All LLM prompts are stored in `config/` and can be easily edited:
+- `config/legal_citation_prompt.txt` - Legal citation analysis rules
+- Create additional prompts in `config/` for custom analysis types
 
 ### Model Settings
-Default model settings can be modified in `config.py`:
+Default model settings can be modified in `config/config.py`:
 - Model: `llama3.2-3b`
 - Base URL: `https://api.llmapi.com`
 - Timeout: 120 seconds
@@ -163,7 +302,7 @@ Default model settings can be modified in `config.py`:
 ### Enable Debug Mode
 Add `--debug` flag to any command for detailed output:
 ```bash
-python llm_document_processor.py check-citations "document.docx" --debug
+python llm/llm_document_processor.py check-citations "document.docx" --debug
 ```
 
 ### Common Issues
@@ -212,29 +351,37 @@ python llm_document_processor.py check-citations "document.docx" --debug
 - Type hints for better IDE support
 
 ### Adding New Features
-1. Create new prompt file for custom analysis
-2. Add new command to main processor
-3. Update documentation
+1. Create new prompt file in `config/` for custom analysis
+2. Add new command to `llm/llm_document_processor.py`
+3. Update documentation in `docs/`
 4. Test with various document types
 
-## 📚 Documentation
+### Development Workflow
+1. Core processing modules in `core/`
+2. LLM integration in `llm/`
+3. Configuration in `config/`
+4. Utilities in `utils/`
+5. Documentation in `docs/`
 
-- `ANCHOR_PIPELINE_README.md` - Technical details of XML preservation
-- `LLM_INTEGRATION_README.md` - LLM API setup and usage
-- `COMPLETE_SYSTEM_README.md` - Complete system architecture
+## 📚 Additional Documentation
+
+- `docs/ANCHOR_PIPELINE_README.md` - Technical details of XML preservation
+- `docs/LLM_INTEGRATION_README.md` - LLM API setup and usage
+- `docs/COMPLETE_SYSTEM_README.md` - Complete system architecture
 
 ## 🆘 Support
 
 ### Troubleshooting
-1. Check API key configuration
+1. Check API key configuration in `config/`
 2. Verify document file paths
 3. Enable debug mode for detailed logs
 4. Check token limits for large documents
 
 ### Getting Help
 - Review debug output for specific errors
-- Check prompt files for customization issues
+- Check prompt files in `config/` for customization issues
 - Verify API connectivity with handshake command
+- Consult documentation in `docs/` folder
 
 ---
 
