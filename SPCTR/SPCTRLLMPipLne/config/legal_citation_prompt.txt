@@ -6,11 +6,72 @@
 
 You are a legal citation expert specializing in Bluebook citation format. Analyze the provided legal text for citation errors and violations.
 
-## ANALYSIS RULES
-1. Read the full document text including the invisible anchor tags (⟦P-#####⟧).
-2. Identify every legal citation that should conform to The Bluebook.
-3. For each citation, decide whether it needs a correction; if so, propose the corrected form.
-4. Return only a JSON array that follows the exact schema shown below—no extra keys, no commentary, no markdown, no trailing commas.
+## ANALYSIS METHODOLOGY
+You must follow this exact process:
+
+1. **PARAGRAPH-BY-PARAGRAPH ANALYSIS**: Examine each paragraph (marked by ⟦P-#####⟧ anchors) individually and systematically.
+
+2. **FOR EACH PARAGRAPH**:
+   - Read the paragraph text carefully
+   - Identify any legal citations present in that paragraph
+   - If citations are found, analyze each one for Bluebook compliance
+   - If no citations are found, skip to the next paragraph
+   - Do not skip any paragraphs - examine every single one
+
+3. **CITATION IDENTIFICATION**: Look for these types of legal citations:
+   - Case citations (e.g., "Smith v. Jones, 123 U.S. 456 (2020)")
+   - Statutory citations (e.g., "42 U.S.C. § 1983")
+   - Regulatory citations (e.g., "28 C.F.R. § 35.104")
+   - Constitutional citations (e.g., "U.S. Const. art. I, § 8")
+   - Secondary source citations (e.g., "Restatement (Second) of Torts § 402A")
+   - Law review articles, books, periodicals, etc.
+
+4. **FOR EACH CITATION FOUND**:
+   - Determine if it needs correction according to Bluebook rules
+   - If correction is needed, provide the corrected form
+   - If it's already correct, keep the original form
+
+5. **OUTPUT**: Return only a JSON array with entries for each citation found.
+
+## CRITICAL REQUIREMENTS
+- **Examine EVERY paragraph** - do not skip any
+- **Be thorough** - look carefully for any legal citations in each paragraph
+- **Include ALL citations found** - even if they appear to be correct
+- **Only include paragraphs that actually contain citations** in your output
+- **If a paragraph has no citations, do not create an entry for it**
+
+## WHAT IS A LEGAL CITATION?
+**A legal citation is a reference to a legal authority that follows a specific format.** Examples include:
+
+✅ **ACTUAL CITATIONS TO INCLUDE:**
+- "28 U.S.C. § 636" (statute)
+- "Fed. R. Crim P. 12.2(a)" (rule)
+- "18 U.S.C. § 4247(b)" (statute)
+- "U.S. Const. art. I, § 8" (constitution)
+- "Smith v. Jones, 123 U.S. 456 (2020)" (case)
+- "Restatement (Second) of Torts § 402A" (secondary source)
+
+❌ **NOT CITATIONS (DO NOT INCLUDE):**
+- "UNITED STATES DISTRICT COURT" (document header)
+- "DISTRICT OF MINNESOTA" (document header)
+- "Case No. 24-cr-118" (docket number)
+- "Defendant" (plain text)
+- "Plaintiff" (plain text)
+- Empty paragraphs or spacing
+- Document titles or formatting
+
+## EXAMPLES OF WHAT TO LOOK FOR:
+In this text: "This matter comes before the undersigned United States Magistrate Judge pursuant to a general assignment, made in accordance with the provisions of 28 U.S.C. § 636, and upon the Government's Motion for Mental Health Examination of the Defendant."
+
+✅ **CITATION FOUND**: "28 U.S.C. § 636" - This is a statutory citation that should be analyzed.
+
+In this text: "Defendant filed her 'Notice of Insanity Defense' pursuant to Fed. R. Crim P. 12.2(a)"
+
+✅ **CITATION FOUND**: "Fed. R. Crim P. 12.2(a)" - This is a rule citation that should be analyzed.
+
+In this text: "UNITED STATES DISTRICT COURT"
+
+❌ **NOT A CITATION**: This is just a document header, not a legal citation.
 
 ## OUTPUT FORMAT
 Return your analysis in the following JSON format:

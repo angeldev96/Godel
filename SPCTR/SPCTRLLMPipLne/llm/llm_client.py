@@ -1,27 +1,51 @@
 """
-LLM API client for Llama integration
+Multi-provider LLM API client supporting Llama and OpenAI
 """
 import json
 import requests
 import time
-from typing import List, Dict, Any, Optional
-from config.config import config
+from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING
+from config.config import config, LLMProvider
+
+# Import OpenAI SDK if available
+try:
+    from openai import OpenAI
+    from openai.types.chat import ChatCompletionMessageParam
+    OPENAI_SDK_AVAILABLE = True
+except ImportError:
+    OPENAI_SDK_AVAILABLE = False
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
+else:
+    ChatCompletionMessageParam = Any
 
 class LLMClient:
-    """Client for Llama LLM API integration"""
+    """Unified client for multiple LLM providers"""
     
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, base_url: str = "https://api.llmapi.com", timeout: int = 120):
-        self.api_key = api_key or config.api_key
-        self.model = model or config.default_model
-        self.base_url = base_url
-        self.timeout = timeout  # Increased timeout to 2 minutes
-        self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+    def __init__(self, provider: LLMProvider, api_key: Optional[str] = None, 
+                 model: Optional[str] = None, base_url: Optional[str] = None, 
+                 timeout: int = 120):
+        self.provider = provider
+        self.api_key = api_key or config.get_api_key(provider)
+        self.model = model or config.default_models[provider]
+        self.base_url = base_url or config.get_api_base_url(provider)
+        self.timeout = timeout
         
         if not self.api_key:
-            raise ValueError("API key is required. Set LLAMA_API_KEY environment variable or pass api_key parameter.")
+            raise ValueError(f"API key is required for {provider.value}. Set {provider.value.upper()}_API_KEY environment variable or pass api_key parameter.")
+        
+        # Set up headers based on provider
+        if provider == LLMProvider.OPENAI:
+            self.headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+        else:  # Llama
+            self.headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
     
     def _make_request(self, endpoint: str, data: Dict, max_retries: int = 3) -> Optional[Dict]:
         """Make API request with retry logic"""
@@ -29,13 +53,13 @@ class LLMClient:
         
         for attempt in range(max_retries):
             try:
-                print(f"🔄 API request attempt {attempt + 1}/{max_retries}")
+                print(f"🔄 {self.provider.value.title()} API request attempt {attempt + 1}/{max_retries}")
                 response = requests.post(url, headers=self.headers, json=data, timeout=self.timeout)
                 
                 if response.status_code == 200:
                     return response.json()
                 else:
-                    print(f"❌ API request failed with status {response.status_code}: {response.text}")
+                    print(f"❌ {self.provider.value.title()} API request failed with status {response.status_code}: {response.text}")
                     if attempt < max_retries - 1:
                         wait_time = 2 ** attempt  # Exponential backoff
                         print(f"⏳ Retrying in {wait_time} seconds...")
@@ -44,16 +68,16 @@ class LLMClient:
                         return None
                         
             except requests.exceptions.Timeout:
-                print(f"⏰ Request timed out (attempt {attempt + 1})")
+                print(f"⏰ {self.provider.value.title()} request timed out (attempt {attempt + 1})")
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt
                     print(f"⏳ Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                 else:
-                    print("❌ All retry attempts failed due to timeout")
+                    print(f"❌ All retry attempts failed due to timeout for {self.provider.value}")
                     return None
             except Exception as e:
-                print(f"❌ API request error: {e}")
+                print(f"❌ {self.provider.value.title()} API request error: {e}")
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt
                     print(f"⏳ Retrying in {wait_time} seconds...")
@@ -89,7 +113,7 @@ class LLMClient:
         
         response = self._make_request("chat/completions", payload)
         if response is None:
-            raise Exception("API request failed")
+            raise Exception(f"{self.provider.value.title()} API request failed")
         return response
     
     def edit_document(
@@ -124,7 +148,7 @@ class LLMClient:
         })
         
         if response is None:
-            raise Exception("Document editing failed")
+            raise Exception(f"Document editing failed with {self.provider.value}")
         
         if 'choices' in response and len(response['choices']) > 0:
             content = response['choices'][0]['message']['content']
@@ -173,7 +197,7 @@ class LLMClient:
         })
         
         if response is None:
-            raise Exception("Document analysis failed")
+            raise Exception(f"Document analysis failed with {self.provider.value}")
         
         if 'choices' in response and len(response['choices']) > 0:
             content = response['choices'][0]['message']['content']
@@ -197,4 +221,82 @@ class LLMClient:
             return False
             
         except Exception:
-            return False 
+            return False
+
+class OpenAIClient:
+    """Client for OpenAI using the official openai Python SDK"""
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        if not OPENAI_SDK_AVAILABLE:
+            raise ImportError("openai package is not installed. Please install it with 'pip install openai'.")
+        self.api_key = api_key or config.get_api_key(LLMProvider.OPENAI)
+        self.model = model or config.default_models[LLMProvider.OPENAI]
+        self.client = OpenAI(api_key=self.api_key)
+
+    def chat_completion(self, messages: List["ChatCompletionMessageParam"], temperature: float = 0.7, max_tokens: int = 1000) -> Dict[str, Any]:
+        try:
+            print(f"[OpenAIClient] Sending chat messages to model {self.model}")
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=float(temperature),
+                max_tokens=int(max_tokens)
+            )
+            print("[OpenAIClient] Received response from OpenAI.")
+            return {
+                "choices": [
+                    {"message": {"content": response.choices[0].message.content}}
+                ]
+            }
+        except Exception as e:
+            print(f"[OpenAIClient] Exception during chat_completion: {e}")
+            raise
+
+    def test_connection(self) -> bool:
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Say 'API is working' and nothing else."}
+                ],
+                temperature=0.1,
+                max_tokens=50
+            )
+            content = response.choices[0].message.content
+            return content is not None and "API is working" in content
+        except Exception as e:
+            print(f"[OpenAIClient] Exception during test_connection: {e}")
+            return False
+
+class LLMClientFactory:
+    """Factory for creating LLM clients with appropriate configuration"""
+    
+    @staticmethod
+    def create_client_for_task(task: str, api_key: Optional[str] = None, 
+                              model: Optional[str] = None) -> Any:
+        """Create an LLM client configured for a specific task"""
+        model_config = config.get_model_for_task(task)
+        provider = model_config["provider"]
+        task_model = model or model_config["model"]
+        
+        if provider == LLMProvider.OPENAI:
+            return OpenAIClient(api_key=api_key, model=task_model)
+        else:
+            return LLMClient(
+                provider=provider,
+                api_key=api_key,
+                model=task_model
+            )
+    
+    @staticmethod
+    def create_client(provider: LLMProvider, api_key: Optional[str] = None, 
+                     model: Optional[str] = None) -> Any:
+        """Create an LLM client for a specific provider"""
+        if provider == LLMProvider.OPENAI:
+            return OpenAIClient(api_key=api_key, model=model)
+        else:
+            return LLMClient(
+                provider=provider,
+                api_key=api_key,
+                model=model
+            ) 

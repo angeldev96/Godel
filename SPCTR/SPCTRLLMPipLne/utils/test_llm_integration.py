@@ -3,15 +3,33 @@ Test script for LLM integration functionality
 """
 import sys
 from pathlib import Path
-from llm_document_processor import LLMDocumentProcessor
+
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from llm.llm_document_processor import LLMDocumentProcessor
+from config.config import config, LLMProvider
 
 def test_llm_integration():
     """Test the LLM integration with a sample document"""
     print("🧪 Testing LLM Integration")
     print("=" * 40)
     
-    # Check if API key is configured
-    processor = LLMDocumentProcessor()
+    # Check if any provider is configured
+    available_providers = config.list_available_providers()
+    if not any(available_providers.values()):
+        print("❌ No API keys configured. Please configure at least one provider.")
+        print("💡 Run: python model_selector.py to configure API keys")
+        return False
+    
+    # Use the first available provider
+    for provider_name, is_configured in available_providers.items():
+        if is_configured:
+            provider = LLMProvider(provider_name)
+            api_key = config.get_api_key(provider)
+            if api_key:
+                processor = LLMDocumentProcessor(provider=provider, api_key=api_key)
+                break
     
     # Test API connection
     print("🔗 Testing API connection...")
@@ -19,7 +37,7 @@ def test_llm_integration():
         print("✅ API connection successful!")
     else:
         print("❌ API connection failed. Please check your API key.")
-        print("💡 Run: python llm_document_processor.py setup <your_api_key>")
+        print("💡 Run: python model_selector.py to configure API keys")
         return False
     
     # Test with a sample document if available
@@ -70,11 +88,11 @@ def demo_usage():
     print("\n📚 Usage Examples:")
     print("=" * 40)
     
-    print("1. Setup API key:")
-    print("   python llm_document_processor.py setup \"your_api_key_here\"")
+    print("1. Configure API keys:")
+    print("   python model_selector.py")
     
     print("\n2. Test connection:")
-    print("   python llm_document_processor.py test")
+    print("   python llm_document_processor.py test-connection")
     
     print("\n3. Edit a document:")
     print("   python llm_document_processor.py edit \"document.docx\" \"Make the language more formal\"")
@@ -84,6 +102,9 @@ def demo_usage():
     
     print("\n5. Get a summary:")
     print("   python llm_document_processor.py analyze \"document.docx\" summary")
+    
+    print("\n6. Check citations:")
+    print("   python run_citation_check.py \"document.docx\" --debug")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "demo":

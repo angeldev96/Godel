@@ -9,8 +9,8 @@ import json
 # Add parent directory to path to import from core and config folders
 sys.path.append(str(Path(__file__).parent.parent))
 
-from config.config import config
-from llm.llm_client import LLMClient
+from config.config import config, LLMProvider
+from llm.llm_client import LLMClient, LLMClientFactory
 from core.xml_to_anchored_txt import xml_to_anchored_txt
 from core.anchored_txt_to_xml import anchored_txt_to_xml
 from core.extract_docx_xml import extract_docx_xml
@@ -38,11 +38,19 @@ def set_handshake_status(status):
 
 def perform_handshake():
     processor = LLMDocumentProcessor()
-    if not config.is_configured() or not config.api_key:
-        print("❌ API key not configured. Run 'setup' first.")
+    # Check if any provider is configured
+    available_providers = config.list_available_providers()
+    if not any(available_providers.values()):
+        print("❌ No API keys configured. Please configure at least one provider.")
         set_handshake_status('failed')
         return False
-    processor.setup_api_key(str(config.api_key))
+    
+    # The constructor should have auto-configured the client
+    if not processor.client:
+        print("❌ Failed to auto-configure client")
+        set_handshake_status('failed')
+        return False
+    
     print("🤝 Performing handshake with LLM API...")
     result = processor.test_api_connection()
     if result:
@@ -57,29 +65,49 @@ def perform_handshake():
 class LLMDocumentProcessor:
     """Main processor for LLM-powered document editing"""
     
-    def __init__(self, api_key: Optional[str] = None):
-        # Use provided API key or get from config
-        if api_key:
-            self.api_key = api_key
-        elif config.is_configured() and config.api_key:
-            self.api_key = config.api_key
-        else:
-            self.api_key = None
-            
-        self.client = None
-        self.working_dir = Path.cwd()
-        if self.api_key:
-            self.client = LLMClient(self.api_key)
-        self.citation_checker = None
-    
-    def setup_api_key(self, api_key: str):
-        """Setup API key for the processor"""
-        config.set_api_key(api_key)
-        config.save_api_key_to_file(api_key)
+    def __init__(self, provider: Optional[LLMProvider] = None, api_key: Optional[str] = None, 
+                 model: Optional[str] = None):
+        self.provider = provider
         self.api_key = api_key
-        self.client = LLMClient(api_key)
-        self.citation_checker = LegalCitationChecker(api_key)
-        print("✅ API key configured successfully")
+        self.model = model
+        self.client = None
+        self.citation_checker = None
+        self.working_dir = Path.cwd()
+        
+        # Initialize client if provider and API key are provided
+        if provider and api_key:
+            self.client = LLMClient(provider, api_key, model)
+            self.citation_checker = LegalCitationChecker(api_key=api_key, model=model, provider=provider)
+        else:
+            # Try to initialize from config
+            available_providers = config.list_available_providers()
+            for provider_name, is_configured in available_providers.items():
+                if is_configured:
+                    provider = LLMProvider(provider_name)
+                    api_key = config.get_api_key(provider)
+                    if api_key:
+                        self.provider = provider
+                        self.api_key = api_key
+                        self.model = model or config.default_models[provider]
+                        self.client = LLMClient(provider, api_key, self.model)
+                        self.citation_checker = LegalCitationChecker(api_key=api_key, model=self.model, provider=provider)
+                        print(f"✅ Auto-configured {provider.value} client")
+                        break
+    
+    def setup_api_key(self, provider: LLMProvider, api_key: str, model: Optional[str] = None):
+        """Setup API key for the processor"""
+        self.provider = provider
+        self.api_key = api_key
+        self.model = model
+        
+        # Save to config
+        config.set_api_key(provider, api_key)
+        config.save_api_key_to_file(provider, api_key)
+        
+        # Initialize clients
+        self.client = LLMClient(provider, api_key, model)
+        self.citation_checker = LegalCitationChecker(api_key=api_key, model=model, provider=provider)
+        print(f"✅ API key configured successfully for {provider.value}")
     
     def test_api_connection(self) -> bool:
         """Test the LLM API connection"""
@@ -275,14 +303,56 @@ class LLMDocumentProcessor:
             Citation analysis results
         """
         if not self.citation_checker:
-            # Use self.api_key if available, otherwise use config
-            api_key_to_use = self.api_key if self.api_key else (config.api_key if config.is_configured() else None)
-            if not api_key_to_use:
-                print("❌ No API key configured. Run 'setup' first.")
+            # Try to create citation checker with available provider
+            available_providers = config.list_available_providers()
+            for provider_name, is_configured in available_providers.items():
+                if is_configured:
+                    provider = LLMProvider(provider_name)
+                    api_key = config.get_api_key(provider)
+                    if api_key:
+                        self.citation_checker = LegalCitationChecker(api_key=api_key, provider=provider)
+                        break
+            
+            if not self.citation_checker:
+                print("❌ No API key configured. Please configure at least one provider.")
                 return None
-            self.citation_checker = LegalCitationChecker(api_key_to_use)
         
         return self.citation_checker.check_citations_from_docx(docx_path, output_file, debug)
+
+    def check_citations_batched(self, docx_path: str, output_file: Optional[str] = None, 
+                               debug: bool = False, batch_size: int = 5, 
+                               context_overlap: int = 2) -> Optional[Dict[str, Any]]:
+        """
+        Check legal citations in a document using batched processing with context windows
+        
+        Args:
+            docx_path: Path to DOCX file
+            output_file: Optional output file for results
+            debug: Enable debug output
+            batch_size: Number of paragraphs per batch
+            context_overlap: Number of paragraphs to overlap between batches
+            
+        Returns:
+            Citation analysis results
+        """
+        if not self.citation_checker:
+            # Try to create citation checker with available provider
+            available_providers = config.list_available_providers()
+            for provider_name, is_configured in available_providers.items():
+                if is_configured:
+                    provider = LLMProvider(provider_name)
+                    api_key = config.get_api_key(provider)
+                    if api_key:
+                        self.citation_checker = LegalCitationChecker(api_key=api_key, provider=provider)
+                        break
+            
+            if not self.citation_checker:
+                print("❌ No API key configured. Please configure at least one provider.")
+                return None
+        
+        return self.citation_checker.check_citations_batched_with_context(
+            docx_path, output_file, debug, batch_size, context_overlap
+        )
 
 def main():
     """Main CLI interface"""
@@ -290,15 +360,17 @@ def main():
         print("LLM Document Processor")
         print("=" * 40)
         print("Usage:")
-        print("  python llm_document_processor.py setup <api_key>")
+        print("  python llm_document_processor.py setup <provider> <api_key> [model]")
         print("  python llm_document_processor.py handshake")
         print("  python llm_document_processor.py test")
         print("  python llm_document_processor.py test-connection")
         print("  python llm_document_processor.py edit <docx_file> <instruction>")
         print("  python llm_document_processor.py analyze <docx_file> [analysis_type]")
-        print("  python llm_document_processor.py check-citations <docx_file> [output.json] [--debug]")
+        print("  python llm_document_processor.py check-citations <docx_file> [--output-path <output.json>] [--debug]")
+        print("  python llm_document_processor.py check-citations-batched <docx_file> [--output-path <output.json>] [--debug] [--batch-size <5>] [--context-overlap <2>]")
         print("  python llm_document_processor.py prompt-editor")
         print("\nAnalysis types: general, legal, technical, summary")
+        print("Providers: llama, openai")
         # On startup, check handshake status
         status = get_handshake_status()
         if status == 'success':
@@ -313,12 +385,22 @@ def main():
     command = sys.argv[1].lower()
     
     if command == "setup":
-        if len(sys.argv) < 3:
-            print("❌ API key required for setup")
+        if len(sys.argv) < 4:
+            print("❌ Provider and API key required for setup")
+            print("Usage: python llm_document_processor.py setup <provider> <api_key> [model]")
             sys.exit(1)
-        api_key = sys.argv[2]
+        provider_name = sys.argv[2]
+        api_key = sys.argv[3]
+        model = sys.argv[4] if len(sys.argv) > 4 else None
+        
+        try:
+            provider = LLMProvider(provider_name)
+        except ValueError:
+            print(f"❌ Invalid provider: {provider_name}. Valid providers: llama, openai")
+            sys.exit(1)
+        
         processor = LLMDocumentProcessor()
-        processor.setup_api_key(api_key)
+        processor.setup_api_key(provider, api_key, model)
         set_handshake_status('unknown')
         
     elif command == "handshake":
@@ -327,18 +409,19 @@ def main():
     
     elif command == "test-connection":
         processor = LLMDocumentProcessor()
-        if not config.is_configured() or not config.api_key:
-            print("❌ API key not configured. Run 'setup' first.")
+        if not processor.client:
+            print("❌ No API keys configured. Please configure at least one provider.")
             sys.exit(1)
-        processor.setup_api_key(str(config.api_key))
+        
         processor.test_api_connection()
         sys.exit(0)
     
     processor = LLMDocumentProcessor()
     
     if command == "test":
-        if not config.is_configured():
-            print("❌ API key not configured. Run 'setup' first.")
+        available_providers = config.list_available_providers()
+        if not any(available_providers.values()):
+            print("❌ No API keys configured. Please configure at least one provider.")
             sys.exit(1)
         processor.test_api_connection()
         
@@ -346,8 +429,9 @@ def main():
         if len(sys.argv) < 4:
             print("❌ Document path and instruction required")
             sys.exit(1)
-        if not config.is_configured():
-            print("❌ API key not configured. Run 'setup' first.")
+        available_providers = config.list_available_providers()
+        if not any(available_providers.values()):
+            print("❌ No API keys configured. Please configure at least one provider.")
             sys.exit(1)
         
         docx_path = sys.argv[2]
@@ -358,8 +442,9 @@ def main():
         if len(sys.argv) < 3:
             print("❌ Document path required")
             sys.exit(1)
-        if not config.is_configured():
-            print("❌ API key not configured. Run 'setup' first.")
+        available_providers = config.list_available_providers()
+        if not any(available_providers.values()):
+            print("❌ No API keys configured. Please configure at least one provider.")
             sys.exit(1)
         
         docx_path = sys.argv[2]
@@ -372,11 +457,66 @@ def main():
             return
         
         docx_path = sys.argv[2]
-        output_file = sys.argv[3] if len(sys.argv) > 3 else None
-        debug = "--debug" in sys.argv
+        
+        # Parse optional arguments
+        output_file = None
+        debug = False
+        
+        i = 3
+        while i < len(sys.argv):
+            if sys.argv[i] == "--output-path" and i + 1 < len(sys.argv):
+                output_file = sys.argv[i + 1]
+                i += 2
+            elif sys.argv[i] == "--debug":
+                debug = True
+                i += 1
+            else:
+                # Treat as positional output file (backward compatibility)
+                if output_file is None:
+                    output_file = sys.argv[i]
+                i += 1
         
         processor = LLMDocumentProcessor()
         results = processor.check_citations(docx_path, output_file, debug)
+        
+        if results and processor.citation_checker:
+            processor.citation_checker.print_results_summary(results)
+    
+    elif command == "check-citations-batched":
+        if len(sys.argv) < 3:
+            print("❌ Please specify a DOCX file path")
+            return
+        
+        docx_path = sys.argv[2]
+        
+        # Parse optional arguments
+        output_file = None
+        debug = False
+        batch_size = 5
+        context_overlap = 2
+        
+        i = 3
+        while i < len(sys.argv):
+            if sys.argv[i] == "--output-path" and i + 1 < len(sys.argv):
+                output_file = sys.argv[i + 1]
+                i += 2
+            elif sys.argv[i] == "--debug":
+                debug = True
+                i += 1
+            elif sys.argv[i] == "--batch-size" and i + 1 < len(sys.argv):
+                batch_size = int(sys.argv[i + 1])
+                i += 2
+            elif sys.argv[i] == "--context-overlap" and i + 1 < len(sys.argv):
+                context_overlap = int(sys.argv[i + 1])
+                i += 2
+            else:
+                # Treat as positional output file (backward compatibility)
+                if output_file is None:
+                    output_file = sys.argv[i]
+                i += 1
+        
+        processor = LLMDocumentProcessor()
+        results = processor.check_citations_batched(docx_path, output_file, debug, batch_size, context_overlap)
         
         if results and processor.citation_checker:
             processor.citation_checker.print_results_summary(results)
@@ -446,7 +586,7 @@ def main():
     
     else:
         print(f"❌ Unknown command: {command}")
-        print("Available commands: setup, test, handshake, edit, analyze, check-citations, prompt-editor")
+        print("Available commands: setup, test, handshake, edit, analyze, check-citations, check-citations-batched, prompt-editor")
 
 if __name__ == "__main__":
     main() 
