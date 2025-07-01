@@ -1,26 +1,18 @@
 # SPCTR LLM Pipeline
 
-A comprehensive document processing pipeline that extracts text from Word documents (.docx) with enhanced formatting preservation and integrates with LLM APIs for advanced document analysis and editing.
+A comprehensive document processing pipeline for extracting, analyzing, and editing Word documents (.docx) with advanced formatting preservation, LLM-powered legal citation checking, and **metadata tracking with timestamps**.
 
 ## 🚀 Features
 
-### Core Document Processing
-- **Enhanced DOCX Extraction**: Preserves text justification, tabs, footnotes, and formatting
-- **XML Preservation**: Maintains 100% of original XML structure with anchor tokens
-- **Round-trip Fidelity**: Extract → Process → Reconstruct with perfect formatting preservation
-- **Batch Processing**: Handle large documents with intelligent batching
-
-### LLM Integration
-- **Legal Citation Checking**: Bluebook-compliant citation analysis with detailed error reporting
-- **Document Editing**: AI-powered document modification with instruction following
-- **Document Analysis**: Multiple analysis types (general, legal, technical, summary)
-- **Configurable Prompts**: Easy-to-edit prompt files for customization
-
-### Developer Tools
-- **Prompt Editor**: Built-in utility for managing and editing LLM prompts
-- **API Management**: Secure API key storage and connection testing
-- **Debug Mode**: Comprehensive logging and error reporting
-- **Token Estimation**: Intelligent batching based on model limits
+- **Perfect Format Preservation**: Round-trip DOCX conversion with 100% fidelity
+- **LLM-Friendly Processing**: Clean text with minimal token overhead
+- **Legal Citation Checking**: Bluebook-compliant, with second-pass reasoning validation
+- **Intelligent Editing**: AI-powered document modification and analysis
+- **Batch Processing**: Handles large documents with intelligent batching
+- **Secure API Integration**: Protected API key management
+- **📋 Metadata Tracking**: Timestamp-based version control and processing history
+- **🆔 Processing IDs**: Unique identifiers for each processing operation
+- **📊 Processing Analytics**: Detailed step-by-step tracking and performance metrics
 
 ## 📁 Project Structure
 
@@ -31,164 +23,104 @@ SPCTRLLMPipLne/
 │   ├── xml_to_anchored_txt.py      # Convert XML to anchored text with tokens
 │   ├── anchored_txt_to_xml.py      # Convert anchored text back to XML
 │   ├── repackage_docx_xml.py       # Reconstruct DOCX from modified XML
-│   ├── docx_extractor.py           # Enhanced DOCX text extraction with formatting
-│   ├── docx_reconstructor.py       # DOCX reconstruction with formatting preservation
-│   └── xml_analyzer.py             # XML structure analysis and debugging
+│   ├── docx_extractor.py           # Enhanced DOCX text extraction
+│   ├── docx_reconstructor.py       # DOCX reconstruction
+│   └── xml_analyzer.py             # XML structure analysis
 │
 ├── llm/                            # LLM integration and processing
-│   ├── llm_client.py               # LLM API client with retry logic and timeout handling
+│   ├── llm_client.py               # LLM API client
 │   ├── llm_document_processor.py   # Main CLI interface for all LLM operations
-│   ├── legal_citation_checker.py   # Legal citation analysis with Bluebook compliance
+│   ├── legal_citation_checker.py   # Legal citation analysis
+│   ├── reasoning_citation_validator.py # Second-pass reasoning validation
 │   ├── token_estimator.py          # Token counting, batching, and context management
 │   └── prompt_editor.py            # Utility for managing and editing LLM prompts
+│
+├── utils/                          # Utility modules
+│   └── metadata_manager.py         # Metadata tracking and version control
 │
 ├── config/                         # Configuration and settings
 │   ├── config.py                   # API key management and global settings
 │   └── legal_citation_prompt.txt   # Configurable prompt for citation analysis
 │
-├── utils/                          # Utility scripts and testing
-│   ├── cleanup_test_files.py       # Cleanup utility for temporary files
-│   └── test_llm_integration.py     # Test script for LLM API integration
-│
 ├── docs/                           # Documentation
 │   ├── README.md                   # This file - main project documentation
 │   ├── ANCHOR_PIPELINE_README.md   # Technical details of XML preservation system
 │   ├── LLM_INTEGRATION_README.md   # LLM API setup and usage guide
-│   └── COMPLETE_SYSTEM_README.md   # Complete system architecture overview
+│   ├── COMPLETE_SYSTEM_README.md   # Complete system architecture overview
+│   └── REASONING_VALIDATION_README.md # Reasoning validation system
 │
-├── .gitignore                      # Git ignore rules
+├── .metadata/                      # Metadata storage (auto-created)
 ├── requirements.txt                # Python dependencies
-└── .llm_handshake_status.json     # API connection status cache
+└── .gitignore                      # Git ignore rules
 ```
 
 ## 🔧 Core Module Details
 
-### `core/` - Document Processing Pipeline
-
-**`extract_docx_xml.py`**
-- Extracts the raw `word/document.xml` from DOCX files
-- Saves XML as `.txt` file for processing
-- Returns the output file path for pipeline integration
-
-**`xml_to_anchored_txt.py`**
-- Converts XML to text with invisible anchor tokens (`<A001>`, `<A002>`, etc.)
-- Preserves formatting tags (`<bold>`, `<italic>`, `<underline>`, etc.)
-- Maintains paragraph structure and document hierarchy
-- Essential for LLM processing with context preservation
-
-**`anchored_txt_to_xml.py`**
-- Converts processed anchored text back to XML format
-- Reconstructs document structure from LLM-modified text
-- Preserves all formatting and anchor tokens
-
-**`repackage_docx_xml.py`**
-- Reconstructs complete DOCX files from modified XML
-- Maintains all original document properties and relationships
-- Enables round-trip document processing
-
-**`docx_extractor.py`**
-- Advanced DOCX text extraction with enhanced formatting preservation
-- Handles justification, tabs, footnotes, and complex formatting
-- Extracts footnotes as inline parentheticals
-- Preserves superscript numbers and special formatting
-
-**`docx_reconstructor.py`**
-- Reconstructs DOCX files with enhanced formatting preservation
-- Maintains original document structure and properties
-- Handles complex formatting elements and relationships
-
-**`xml_analyzer.py`**
-- Analyzes XML structure for debugging and development
-- Provides detailed insights into document formatting
-- Useful for troubleshooting and optimization
+See `docs/COMPLETE_SYSTEM_README.md` and `docs/ANCHOR_PIPELINE_README.md` for technical details on the document processing pipeline.
 
 ## 🤖 LLM Module Details
 
-### `llm/` - AI Integration and Processing
+- **Citation Checking**: See `llm/legal_citation_checker.py` and `llm/reasoning_citation_validator.py` for Bluebook-compliant and reasoning-based validation.
+- **Main CLI**: Use `llm/llm_document_processor.py` for all LLM-powered operations.
+- **Prompt Management**: Use `llm/prompt_editor.py` and edit prompts in `config/`.
 
-**`llm_client.py`**
-- LLM API client with robust error handling and retry logic
-- Supports chat completion, document editing, and analysis
-- Configurable timeouts and connection management
-- Handles API responses and JSON parsing
+## 🧠 Reasoning-Based Validation
 
-**`llm_document_processor.py`**
-- Main CLI interface for all LLM-powered operations
-- Commands: setup, test, handshake, edit, analyze, check-citations, prompt-editor
-- Integrates all pipeline components for seamless operation
-- Provides debug mode and comprehensive error reporting
+See `docs/REASONING_VALIDATION_README.md` for details on the second-pass reasoning system that improves citation accuracy using OpenAI's advanced models.
 
-**`legal_citation_checker.py`**
-- Bluebook-compliant legal citation analysis
-- Identifies citation errors and provides corrections
-- Supports batching for large documents
-- Returns structured JSON results with detailed analysis
+## 📋 Metadata Tracking System
 
-**`token_estimator.py`**
-- Intelligent token counting and context management
-- Determines when batching is needed for large documents
-- Optimizes API usage and prevents token limit errors
-- Provides detailed token analysis and utilization statistics
+The pipeline now includes comprehensive metadata tracking that helps prevent confusion when processing the same document multiple times:
 
-**`prompt_editor.py`**
-- Utility for managing and editing LLM prompts
-- Supports listing, viewing, editing, and creating prompts
-- Enables easy customization of LLM behavior
-- Integrates with main processor for seamless prompt management
+### Key Features:
+- **🆔 Unique Processing IDs**: Each processing operation gets a unique identifier
+- **⏰ Timestamp Tracking**: Start/end times and duration for each operation
+- **📄 File Versioning**: Hash-based file identification to track document versions
+- **🔧 Step-by-Step Tracking**: Detailed logging of each pipeline step
+- **📊 Performance Metrics**: Processing time, file sizes, and success/failure status
+- **📁 Output File Management**: Automatic tracking of all generated files
 
-## ⚙️ Configuration Details
+### Metadata Commands:
+```bash
+# View metadata for a document
+python llm/llm_document_processor.py metadata "document.docx"
 
-### `config/` - Settings and Configuration
+# Show all processing versions
+python llm/llm_document_processor.py metadata "document.docx" --show-versions
 
-**`config.py`**
-- API key management with environment variable support
-- Global settings for model, timeout, and base URL
-- Secure key storage and retrieval
-- Configuration validation and error handling
+# Show latest processing version
+python llm/llm_document_processor.py metadata "document.docx" --show-latest
 
-**`legal_citation_prompt.txt`**
-- Configurable prompt for legal citation analysis
-- Defines Bluebook rules and error detection criteria
-- Specifies JSON output format and analysis structure
-- Easily editable for customization
+# Show specific processing by ID
+python llm/llm_document_processor.py metadata "document.docx" --processing-id proc_1234567890
 
-## 🛠️ Utility Details
+# Clean up old metadata files
+python llm/llm_document_processor.py cleanup-metadata --days 30
+```
 
-### `utils/` - Helper Scripts and Testing
+### Example Metadata Output:
+```
+📋 PROCESSING SUMMARY
+============================================================
+🆔 Processing ID: proc_1703123456789
+📄 Document: Stately 24-118 Order Instanity Eval.docx
+⏰ Start Time: 2023-12-21T14:30:45.123456
+⏱️  Duration: 12.34 seconds
+📁 Working Directory: C:\Users\bsusl\SPCTR
 
-**`cleanup_test_files.py`**
-- Removes temporary and test files
-- Cleans up intermediate processing files
-- Maintains clean project directory
+🔧 Pipeline Steps (5):
+  1. ✅ extract_xml - 2023-12-21T14:30:45.234567
+  2. ✅ convert_to_anchored_txt - 2023-12-21T14:30:46.345678
+  3. ✅ citation_checking_start - 2023-12-21T14:30:47.456789
+  4. ✅ citation_checking_complete - 2023-12-21T14:30:57.567890
+  5. ✅ metadata_save - 2023-12-21T14:30:57.678901
 
-**`test_llm_integration.py`**
-- Tests LLM API connectivity and functionality
-- Validates API key configuration
-- Provides basic integration testing
-
-## 📚 Documentation Details
-
-### `docs/` - Comprehensive Documentation
-
-**`README.md`** (This file)
-- Main project documentation and user guide
-- Installation and usage instructions
-- Feature overview and command reference
-
-**`ANCHOR_PIPELINE_README.md`**
-- Technical details of XML preservation system
-- Anchor token implementation and usage
-- Pipeline architecture and data flow
-
-**`LLM_INTEGRATION_README.md`**
-- LLM API setup and configuration guide
-- Model selection and parameter tuning
-- Troubleshooting and best practices
-
-**`COMPLETE_SYSTEM_README.md`**
-- Complete system architecture overview
-- Component interaction and data flow
-- Development and extension guidelines
+📤 Output Files (3):
+  📄 Stately_24-118_Order_Instanity_Eval_raw.xml.txt (47.23 KB)
+  📄 Stately_24-118_Order_Instanity_Eval_raw.xml.anchored.txt (7.45 KB)
+  📄 Stately_24-118_Order_Instanity_Eval_citations_proc_1703123456789_20231221_143057.json (3.67 KB)
+============================================================
+```
 
 ## 🛠️ Installation
 
@@ -197,62 +129,51 @@ SPCTRLLMPipLne/
    git clone <repository-url>
    cd SPCTRLLMPipLne
    ```
-
 2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
-
 3. **Configure API key**
    ```bash
    python llm/llm_document_processor.py setup
-   ```
-   Or manually create a `.env` file:
-   ```
-   LLAMA_API_KEY=your-api-key-here
+   # Or manually create a .env file
+   # OPENAI_API_KEY=your-api-key-here
    ```
 
 ## 🚀 Quick Start
 
 ### Basic Document Processing
 ```bash
-# Extract XML from DOCX
 python core/extract_docx_xml.py "document.docx"
-
-# Convert to anchored text
 python core/xml_to_anchored_txt.py "document_raw.xml.txt"
-
-# Reconstruct DOCX
 python core/repackage_docx_xml.py "document.docx" "document_raw.xml.txt"
 ```
 
-### LLM-Powered Analysis
+### LLM-Powered Analysis with Metadata Tracking
 ```bash
-# Test API connection
 python llm/llm_document_processor.py handshake
-
-# Check legal citations
-python llm/llm_document_processor.py check-citations "document.docx" --debug
-
-# Edit document
+python llm/llm_document_processor.py check-citations "document.docx" --reasoning --debug
 python llm/llm_document_processor.py edit "document.docx" "Make the text more formal"
-
-# Analyze document
 python llm/llm_document_processor.py analyze "document.docx" legal
+```
+
+### Metadata Management
+```bash
+# View processing history
+python llm/llm_document_processor.py metadata "document.docx" --show-versions
+
+# Check latest processing
+python llm/llm_document_processor.py metadata "document.docx" --show-latest
+
+# Clean up old metadata
+python llm/llm_document_processor.py cleanup-metadata --days 30
 ```
 
 ### Prompt Management
 ```bash
-# List available prompts
 python llm/llm_document_processor.py prompt-editor list
-
-# View citation prompt
 python llm/llm_document_processor.py prompt-editor show legal_citation
-
-# Edit citation prompt
 python llm/llm_document_processor.py prompt-editor edit legal_citation
-
-# Create new prompt
 python llm/llm_document_processor.py prompt-editor create custom_analysis
 ```
 
@@ -264,8 +185,11 @@ python llm/llm_document_processor.py prompt-editor create custom_analysis
 - `handshake` - Verify API connectivity
 - `edit <docx> <instruction>` - Edit document with LLM
 - `analyze <docx> [type]` - Analyze document (general/legal/technical/summary)
-- `check-citations <docx> [output.json] [--debug]` - Check legal citations
+- `check-citations <docx> [output.json] [--debug] [--reasoning|--no-reasoning]` - Check legal citations (with optional reasoning validation)
+- `check-citations-batched <docx> [--batch-size N] [--context-overlap N] [--reasoning|--no-reasoning]` - Batched citation checking
 - `prompt-editor` - Manage LLM prompts
+- `metadata <docx> [--show-versions] [--show-latest] [--processing-id <id>]` - View processing metadata
+- `cleanup-metadata [--days <30>]` - Clean up old metadata files
 
 ### Core Processing Commands
 - `core/extract_docx_xml.py <docx>` - Extract XML from DOCX
@@ -273,118 +197,76 @@ python llm/llm_document_processor.py prompt-editor create custom_analysis
 - `core/anchored_txt_to_xml.py <txt>` - Convert anchored text to XML
 - `core/repackage_docx_xml.py <docx> <xml>` - Reconstruct DOCX
 
-### Utility Commands
-- `utils/cleanup_test_files.py` - Clean up temporary files
-- `utils/test_llm_integration.py` - Test LLM integration
+## ⚙️ Configuration
 
-## 🔧 Configuration
+- API keys in `.env` or via `setup` command
+- Prompts in `config/`
+- Model settings in `config/config.py`
+- Metadata stored in `.metadata/` directory (auto-created)
 
-### API Settings
-The system uses a `.env` file for API configuration:
-```
-LLAMA_API_KEY=your-api-key-here
-```
+## 🧠 Reasoning Validation
 
-### Prompt Customization
-All LLM prompts are stored in `config/` and can be easily edited:
-- `config/legal_citation_prompt.txt` - Legal citation analysis rules
-- Create additional prompts in `config/` for custom analysis types
+The reasoning validation system uses OpenAI's advanced models (o4-mini, o3, etc.) for second-pass citation validation:
 
-### Model Settings
-Default model settings can be modified in `config/config.py`:
-- Model: `llama3.2-3b`
-- Base URL: `https://api.llmapi.com`
-- Timeout: 120 seconds
-- Max tokens: 8000
-
-## 🔍 Debugging
-
-### Enable Debug Mode
-Add `--debug` flag to any command for detailed output:
 ```bash
-python llm/llm_document_processor.py check-citations "document.docx" --debug
+# Enable reasoning validation (default)
+python llm/llm_document_processor.py check-citations "document.docx" --reasoning
+
+# Disable reasoning validation
+python llm/llm_document_processor.py check-citations "document.docx" --no-reasoning
 ```
 
-### Common Issues
-1. **API Timeout**: Increased timeout to 120 seconds with retry logic
-2. **JSON Parsing**: Enhanced JSON extraction from LLM responses
-3. **Token Limits**: Automatic batching for large documents
-4. **API Key Issues**: Multiple fallback methods for key loading
+## 📊 Metadata Benefits
 
-### Log Files
-- API responses are logged in debug mode
-- Token analysis shows utilization statistics
-- Error messages include detailed context
+### Version Control
+- **Prevent Confusion**: Each processing operation is uniquely identified
+- **Track Changes**: See when documents were processed and what changed
+- **File Integrity**: Hash-based verification ensures you're working with the right version
 
-## 📊 Performance
+### Quality Assurance
+- **Processing History**: Complete audit trail of all operations
+- **Performance Monitoring**: Track processing times and identify bottlenecks
+- **Error Tracking**: Detailed error logs for debugging
 
-### Token Management
-- Automatic token counting and estimation
-- Intelligent batching for large documents
-- Context window utilization tracking
-- Safety margins to prevent overflows
+### File Management
+- **Automatic Organization**: Output files are automatically named with timestamps
+- **Cleanup Tools**: Remove old metadata to keep workspace organized
+- **Cross-Reference**: Link processing operations to specific file versions
 
-### Processing Speed
-- XML extraction: ~1-2 seconds per document
-- LLM processing: Varies by document size and API response time
-- Batching: Reduces API calls for large documents
+## 🧪 Testing
 
-## 🔒 Security
+Test the metadata functionality:
+```bash
+python test_metadata.py
+```
 
-### API Key Protection
-- Keys stored in `.env` file (not in code)
-- Environment variable fallback
-- No key logging in debug output
-- Secure key masking in logs
+## 🔮 Future Enhancements
 
-### Data Privacy
-- Local processing by default
-- No data sent to external services except LLM API
-- Temporary files cleaned up automatically
+1. **Web Interface**: GUI for document processing with metadata visualization
+2. **Advanced Analytics**: Processing performance dashboards
+3. **Collaboration Features**: Multi-user metadata tracking
+4. **Integration APIs**: REST API for metadata access
+5. **Export Capabilities**: Export metadata to various formats (CSV, JSON, etc.)
 
-## 🤝 Contributing
+## 📞 Support
 
-### Code Organization
-- Modular design for easy extension
-- Clear separation of concerns
-- Comprehensive error handling
-- Type hints for better IDE support
+### Documentation
+- `ANCHOR_PIPELINE_README.md`: Anchor token details
+- `LLM_INTEGRATION_README.md`: LLM integration guide
+- `REASONING_VALIDATION_README.md`: Reasoning validation system
+- `test_metadata.py`: Metadata functionality test
 
-### Adding New Features
-1. Create new prompt file in `config/` for custom analysis
-2. Add new command to `llm/llm_document_processor.py`
-3. Update documentation in `docs/`
-4. Test with various document types
+### Error Reporting
+1. Check troubleshooting section
+2. Verify API key and connection
+3. Test with simple documents
+4. Review error logs and metadata
+5. Check file permissions
 
-### Development Workflow
-1. Core processing modules in `core/`
-2. LLM integration in `llm/`
-3. Configuration in `config/`
-4. Utilities in `utils/`
-5. Documentation in `docs/`
+## 📄 License
 
-## 📚 Additional Documentation
-
-- `docs/ANCHOR_PIPELINE_README.md` - Technical details of XML preservation
-- `docs/LLM_INTEGRATION_README.md` - LLM API setup and usage
-- `docs/COMPLETE_SYSTEM_README.md` - Complete system architecture
-
-## 🆘 Support
-
-### Troubleshooting
-1. Check API key configuration in `config/`
-2. Verify document file paths
-3. Enable debug mode for detailed logs
-4. Check token limits for large documents
-
-### Getting Help
-- Review debug output for specific errors
-- Check prompt files in `config/` for customization issues
-- Verify API connectivity with handshake command
-- Consult documentation in `docs/` folder
+This project is designed for document processing and LLM integration. Ensure compliance with your API provider's terms of service.
 
 ---
 
-**Version**: 2.0  
-**Last Updated**: December 2024  
-**License**: MIT 
+**🎉 Ready to process documents intelligently with full metadata tracking!** 

@@ -16,6 +16,7 @@ from core.anchored_txt_to_xml import anchored_txt_to_xml
 from core.extract_docx_xml import extract_docx_xml
 from core.repackage_docx_xml import repackage_docx_xml
 from llm.legal_citation_checker import LegalCitationChecker
+from utils.metadata_manager import MetadataManager
 
 HANDSHAKE_STATUS_FILE = Path(__file__).parent.parent / '.llm_handshake_status.json'
 
@@ -73,14 +74,30 @@ class LLMDocumentProcessor:
         self.client = None
         self.citation_checker = None
         self.working_dir = Path.cwd()
+        self.metadata_manager = MetadataManager(self.working_dir)
         
         # Initialize client if provider and API key are provided
         if provider and api_key:
             self.client = LLMClient(provider, api_key, model)
             self.citation_checker = LegalCitationChecker(api_key=api_key, model=model, provider=provider)
         else:
-            # Try to initialize from config
+            # Try to initialize from config - prioritize OpenAI over Llama
             available_providers = config.list_available_providers()
+            
+            # Try OpenAI first if available
+            if available_providers.get("openai", False):
+                provider = LLMProvider.OPENAI
+                api_key = config.get_api_key(provider)
+                if api_key:
+                    self.provider = provider
+                    self.api_key = api_key
+                    self.model = model or config.default_models[provider]
+                    self.client = LLMClient(provider, api_key, self.model)
+                    self.citation_checker = LegalCitationChecker(api_key=api_key, model=self.model, provider=provider)
+                    print(f"✅ Auto-configured {provider.value} client")
+                    return
+            
+            # Fall back to Llama if OpenAI not available
             for provider_name, is_configured in available_providers.items():
                 if is_configured:
                     provider = LLMProvider(provider_name)
@@ -136,7 +153,7 @@ class LLMDocumentProcessor:
         max_tokens: int = 2000
     ) -> Optional[str]:
         """
-        Process a document through the complete LLM pipeline
+        Process a document through the complete LLM pipeline with metadata tracking
         
         Args:
             docx_path: Path to input DOCX file
@@ -148,32 +165,60 @@ class LLMDocumentProcessor:
         Returns:
             Path to the edited DOCX file, or None if failed
         """
+        # Create metadata for this processing operation
+        metadata = self.metadata_manager.create_document_metadata(docx_path)
+        processing_id = metadata["processing_id"]
+        
+        print(f"🆔 Processing ID: {processing_id}")
+        print(f"📄 Document: {metadata['original_file']['name']}")
+        print(f"⏰ Start Time: {metadata['processing']['start_time']}")
+        print(f"📝 Instruction: {instruction}")
+        
         if not self.client:
-            print("❌ No API client configured")
+            error_msg = "No API client configured"
+            print(f"❌ {error_msg}")
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "document_processing", 
+                                                              docx_path, None, "failed", error_msg)
+            self.metadata_manager.save_metadata(metadata)
             return None
             
         docx_path_obj = Path(docx_path)
         if not docx_path_obj.exists():
-            print(f"❌ Document not found: {docx_path}")
+            error_msg = f"Document not found: {docx_path}"
+            print(f"❌ {error_msg}")
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "document_processing", 
+                                                              docx_path, None, "failed", error_msg)
+            self.metadata_manager.save_metadata(metadata)
             return None
         
         try:
-            print(f"📄 Processing document: {docx_path_obj.name}")
-            print(f"📝 Instruction: {instruction}")
-            
             # Step 1: Extract XML from DOCX
             print("🔧 Step 1: Extracting XML...")
             xml_file = extract_docx_xml(str(docx_path_obj))
             if not xml_file:
-                print("❌ Failed to extract XML")
+                error_msg = "Failed to extract XML"
+                print(f"❌ {error_msg}")
+                metadata = self.metadata_manager.add_pipeline_step(metadata, "extract_xml", 
+                                                                  docx_path, None, "failed", error_msg)
+                self.metadata_manager.save_metadata(metadata)
                 return None
+            
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "extract_xml", 
+                                                              docx_path, xml_file, "completed")
             
             # Step 2: Convert XML to anchored TXT
             print("🔗 Step 2: Converting to anchored TXT...")
             anchored_txt_file = xml_to_anchored_txt(xml_file)
             if not anchored_txt_file:
-                print("❌ Failed to convert to anchored TXT")
+                error_msg = "Failed to convert to anchored TXT"
+                print(f"❌ {error_msg}")
+                metadata = self.metadata_manager.add_pipeline_step(metadata, "convert_to_anchored_txt", 
+                                                                  xml_file, None, "failed", error_msg)
+                self.metadata_manager.save_metadata(metadata)
                 return None
+            
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "convert_to_anchored_txt", 
+                                                              xml_file, anchored_txt_file, "completed")
             
             # Step 3: Read anchored text
             with open(anchored_txt_file, 'r', encoding='utf-8') as f:
@@ -189,9 +234,14 @@ class LLMDocumentProcessor:
             )
             
             # Step 5: Save edited text
-            edited_txt_file = docx_path_obj.with_suffix(f'{output_suffix}.anchored.txt')
+            edited_txt_file = self.metadata_manager.create_output_filename(
+                docx_path, processing_id, "edited_anchored", ".txt"
+            )
             with open(edited_txt_file, 'w', encoding='utf-8') as f:
                 f.write(edited_text)
+            
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "llm_editing", 
+                                                              anchored_txt_file, edited_txt_file, "completed")
             
             # Step 6: Convert back to XML
             print("🔄 Step 4: Converting back to XML...")
@@ -200,8 +250,15 @@ class LLMDocumentProcessor:
                 xml_file
             )
             if not reconstructed_xml:
-                print("❌ Failed to reconstruct XML")
+                error_msg = "Failed to reconstruct XML"
+                print(f"❌ {error_msg}")
+                metadata = self.metadata_manager.add_pipeline_step(metadata, "convert_to_xml", 
+                                                                  edited_txt_file, None, "failed", error_msg)
+                self.metadata_manager.save_metadata(metadata)
                 return None
+            
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "convert_to_xml", 
+                                                              edited_txt_file, reconstructed_xml, "completed")
             
             # Step 7: Repackage as DOCX
             print("📋 Step 5: Repackaging as DOCX...")
@@ -211,15 +268,32 @@ class LLMDocumentProcessor:
             )
             
             if output_docx:
+                metadata = self.metadata_manager.add_pipeline_step(metadata, "repackage_docx", 
+                                                                  reconstructed_xml, output_docx, "completed")
+                
+                # Save metadata
+                metadata_file = self.metadata_manager.save_metadata(metadata)
+                
+                # Print summary
+                self.metadata_manager.print_processing_summary(metadata)
+                
                 print(f"✅ Document processing complete!")
                 print(f"📁 Output file: {output_docx}")
                 return output_docx
             else:
-                print("❌ Failed to create output DOCX")
+                error_msg = "Failed to create output DOCX"
+                print(f"❌ {error_msg}")
+                metadata = self.metadata_manager.add_pipeline_step(metadata, "repackage_docx", 
+                                                                  reconstructed_xml, None, "failed", error_msg)
+                self.metadata_manager.save_metadata(metadata)
                 return None
                 
         except Exception as e:
-            print(f"❌ Document processing failed: {e}")
+            error_msg = f"Document processing failed: {e}"
+            print(f"❌ {error_msg}")
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "document_processing", 
+                                                              docx_path, None, "failed", error_msg)
+            self.metadata_manager.save_metadata(metadata)
             return None
     
     def analyze_document(
@@ -290,40 +364,88 @@ class LLMDocumentProcessor:
             return None
 
     def check_citations(self, docx_path: str, output_file: Optional[str] = None, 
-                       debug: bool = False) -> Optional[Dict[str, Any]]:
+                       debug: bool = False, enable_reasoning: Optional[bool] = None) -> Optional[Dict[str, Any]]:
         """
-        Check legal citations in a document
+        Check legal citations in a document with metadata tracking
         
         Args:
             docx_path: Path to DOCX file
             output_file: Optional output file for results
             debug: Enable debug output
+            enable_reasoning: Enable reasoning-based second-pass validation
             
         Returns:
             Citation analysis results
         """
-        if not self.citation_checker:
-            # Try to create citation checker with available provider
-            available_providers = config.list_available_providers()
-            for provider_name, is_configured in available_providers.items():
-                if is_configured:
-                    provider = LLMProvider(provider_name)
-                    api_key = config.get_api_key(provider)
-                    if api_key:
-                        self.citation_checker = LegalCitationChecker(api_key=api_key, provider=provider)
-                        break
-            
-            if not self.citation_checker:
-                print("❌ No API key configured. Please configure at least one provider.")
-                return None
+        # Create metadata for this processing operation
+        metadata = self.metadata_manager.create_document_metadata(docx_path)
+        processing_id = metadata["processing_id"]
         
-        return self.citation_checker.check_citations_from_docx(docx_path, output_file, debug)
+        print(f"🆔 Processing ID: {processing_id}")
+        print(f"📄 Document: {metadata['original_file']['name']}")
+        print(f"⏰ Start Time: {metadata['processing']['start_time']}")
+        
+        try:
+            if not self.citation_checker:
+                # Try to create citation checker with available provider
+                available_providers = config.list_available_providers()
+                for provider_name, is_configured in available_providers.items():
+                    if is_configured:
+                        provider = LLMProvider(provider_name)
+                        api_key = config.get_api_key(provider)
+                        if api_key:
+                            self.citation_checker = LegalCitationChecker(api_key=api_key, provider=provider)
+                            break
+                
+                if not self.citation_checker:
+                    error_msg = "No API key configured. Please configure at least one provider."
+                    print(f"❌ {error_msg}")
+                    metadata = self.metadata_manager.add_pipeline_step(metadata, "citation_checking", 
+                                                                      docx_path, None, "failed", error_msg)
+                    self.metadata_manager.save_metadata(metadata)
+                    return None
+            
+            # Generate output filename with metadata if not provided
+            if not output_file:
+                output_file = self.metadata_manager.create_output_filename(
+                    docx_path, processing_id, "citations", ".json"
+                )
+            
+            # Add initial step
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "citation_checking_start", 
+                                                              docx_path, None, "started")
+            
+            # Perform citation checking
+            results = self.citation_checker.check_citations_from_docx(docx_path, output_file, debug, enable_reasoning)
+            
+            # Add completion step
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "citation_checking_complete", 
+                                                              docx_path, output_file, "completed")
+            
+            # Save metadata
+            metadata_file = self.metadata_manager.save_metadata(metadata)
+            
+            # Print summary
+            self.metadata_manager.print_processing_summary(metadata)
+            
+            if results and self.citation_checker:
+                self.citation_checker.print_results_summary(results)
+            
+            return results
+            
+        except Exception as e:
+            error_msg = f"Citation checking failed: {e}"
+            print(f"❌ {error_msg}")
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "citation_checking", 
+                                                              docx_path, None, "failed", error_msg)
+            self.metadata_manager.save_metadata(metadata)
+            return None
 
     def check_citations_batched(self, docx_path: str, output_file: Optional[str] = None, 
                                debug: bool = False, batch_size: int = 5, 
-                               context_overlap: int = 2) -> Optional[Dict[str, Any]]:
+                               context_overlap: int = 2, enable_reasoning: Optional[bool] = None) -> Optional[Dict[str, Any]]:
         """
-        Check legal citations in a document using batched processing with context windows
+        Check legal citations in a document using batched processing with context windows and metadata tracking
         
         Args:
             docx_path: Path to DOCX file
@@ -331,28 +453,77 @@ class LLMDocumentProcessor:
             debug: Enable debug output
             batch_size: Number of paragraphs per batch
             context_overlap: Number of paragraphs to overlap between batches
+            enable_reasoning: Enable reasoning-based second-pass validation
             
         Returns:
             Citation analysis results
         """
-        if not self.citation_checker:
-            # Try to create citation checker with available provider
-            available_providers = config.list_available_providers()
-            for provider_name, is_configured in available_providers.items():
-                if is_configured:
-                    provider = LLMProvider(provider_name)
-                    api_key = config.get_api_key(provider)
-                    if api_key:
-                        self.citation_checker = LegalCitationChecker(api_key=api_key, provider=provider)
-                        break
-            
-            if not self.citation_checker:
-                print("❌ No API key configured. Please configure at least one provider.")
-                return None
+        # Create metadata for this processing operation
+        metadata = self.metadata_manager.create_document_metadata(docx_path)
+        processing_id = metadata["processing_id"]
         
-        return self.citation_checker.check_citations_batched_with_context(
-            docx_path, output_file, debug, batch_size, context_overlap
-        )
+        print(f"🆔 Processing ID: {processing_id}")
+        print(f"📄 Document: {metadata['original_file']['name']}")
+        print(f"⏰ Start Time: {metadata['processing']['start_time']}")
+        print(f"📦 Batch Size: {batch_size}, Context Overlap: {context_overlap}")
+        
+        try:
+            if not self.citation_checker:
+                # Try to create citation checker with available provider
+                available_providers = config.list_available_providers()
+                for provider_name, is_configured in available_providers.items():
+                    if is_configured:
+                        provider = LLMProvider(provider_name)
+                        api_key = config.get_api_key(provider)
+                        if api_key:
+                            self.citation_checker = LegalCitationChecker(api_key=api_key, provider=provider)
+                            break
+                
+                if not self.citation_checker:
+                    error_msg = "No API key configured. Please configure at least one provider."
+                    print(f"❌ {error_msg}")
+                    metadata = self.metadata_manager.add_pipeline_step(metadata, "batched_citation_checking", 
+                                                                      docx_path, None, "failed", error_msg)
+                    self.metadata_manager.save_metadata(metadata)
+                    return None
+            
+            # Generate output filename with metadata if not provided
+            if not output_file:
+                output_file = self.metadata_manager.create_output_filename(
+                    docx_path, processing_id, "citations_batched", ".json"
+                )
+            
+            # Add initial step
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "batched_citation_checking_start", 
+                                                              docx_path, None, "started")
+            
+            # Perform batched citation checking
+            results = self.citation_checker.check_citations_batched_with_context(
+                docx_path, output_file, debug, batch_size, context_overlap
+            )
+            
+            # Add completion step
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "batched_citation_checking_complete", 
+                                                              docx_path, output_file, "completed")
+            
+            # Save metadata
+            metadata_file = self.metadata_manager.save_metadata(metadata)
+            
+            # Print summary
+            self.metadata_manager.print_processing_summary(metadata)
+            
+            if results and self.citation_checker:
+                self.citation_checker.print_results_summary(results)
+            
+            return results
+            
+        except Exception as e:
+            error_msg = f"Batched citation checking failed: {e}"
+            print(f"❌ {error_msg}")
+            metadata = self.metadata_manager.add_pipeline_step(metadata, "batched_citation_checking", 
+                                                              docx_path, None, "failed", error_msg)
+            self.metadata_manager.save_metadata(metadata)
+            return None
 
 def main():
     """Main CLI interface"""
@@ -366,11 +537,18 @@ def main():
         print("  python llm_document_processor.py test-connection")
         print("  python llm_document_processor.py edit <docx_file> <instruction>")
         print("  python llm_document_processor.py analyze <docx_file> [analysis_type]")
-        print("  python llm_document_processor.py check-citations <docx_file> [--output-path <output.json>] [--debug]")
-        print("  python llm_document_processor.py check-citations-batched <docx_file> [--output-path <output.json>] [--debug] [--batch-size <5>] [--context-overlap <2>]")
+        print("  python llm_document_processor.py check-citations <docx_file> [--output-path <output.json>] [--debug] [--reasoning|--no-reasoning]")
+        print("  python llm_document_processor.py check-citations-batched <docx_file> [--output-path <output.json>] [--debug] [--batch-size <5>] [--context-overlap <2>] [--reasoning|--no-reasoning]")
         print("  python llm_document_processor.py prompt-editor")
+        print("  python llm_document_processor.py metadata <docx_file> [--show-versions] [--show-latest] [--processing-id <id>]")
+        print("  python llm_document_processor.py cleanup-metadata [--days <30>]")
         print("\nAnalysis types: general, legal, technical, summary")
         print("Providers: llama, openai")
+        print("\nMetadata Commands:")
+        print("  metadata <docx_file> --show-versions    # Show all processing versions")
+        print("  metadata <docx_file> --show-latest      # Show latest processing version")
+        print("  metadata <docx_file> --processing-id <id> # Show specific processing metadata")
+        print("  cleanup-metadata --days <30>            # Clean up old metadata files")
         # On startup, check handshake status
         status = get_handshake_status()
         if status == 'success':
@@ -414,6 +592,86 @@ def main():
             sys.exit(1)
         
         processor.test_api_connection()
+        sys.exit(0)
+    
+    elif command == "metadata":
+        if len(sys.argv) < 3:
+            print("❌ Please specify a DOCX file path")
+            sys.exit(1)
+        
+        docx_path = sys.argv[2]
+        processor = LLMDocumentProcessor()
+        
+        # Parse optional arguments
+        show_versions = False
+        show_latest = False
+        processing_id = None
+        
+        i = 3
+        while i < len(sys.argv):
+            if sys.argv[i] == "--show-versions":
+                show_versions = True
+                i += 1
+            elif sys.argv[i] == "--show-latest":
+                show_latest = True
+                i += 1
+            elif sys.argv[i] == "--processing-id" and i + 1 < len(sys.argv):
+                processing_id = sys.argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        
+        # Handle metadata commands
+        if processing_id:
+            # Show specific processing metadata
+            metadata = processor.metadata_manager.load_metadata(processing_id)
+            if metadata:
+                processor.metadata_manager.print_processing_summary(metadata)
+            else:
+                print(f"❌ No metadata found for processing ID: {processing_id}")
+        elif show_versions:
+            # Show all versions
+            versions = processor.metadata_manager.find_document_versions(docx_path)
+            if versions:
+                print(f"\n📋 Found {len(versions)} processing versions for: {Path(docx_path).name}")
+                print("=" * 60)
+                for i, version in enumerate(versions, 1):
+                    print(f"{i}. Processing ID: {version['processing_id']}")
+                    print(f"   Start Time: {version['processing']['start_time']}")
+                    print(f"   Duration: {version['processing'].get('duration_seconds', 0):.2f} seconds")
+                    print(f"   Status: {version['status']}")
+                    print(f"   Steps: {len(version['pipeline_steps'])}")
+                    print()
+            else:
+                print(f"❌ No processing versions found for: {docx_path}")
+        elif show_latest:
+            # Show latest version
+            latest = processor.metadata_manager.get_latest_version(docx_path)
+            if latest:
+                processor.metadata_manager.print_processing_summary(latest)
+            else:
+                print(f"❌ No processing versions found for: {docx_path}")
+        else:
+            # Show latest version by default
+            latest = processor.metadata_manager.get_latest_version(docx_path)
+            if latest:
+                processor.metadata_manager.print_processing_summary(latest)
+            else:
+                print(f"❌ No processing versions found for: {docx_path}")
+    
+    elif command == "cleanup-metadata":
+        # Parse optional arguments
+        days_to_keep = 30
+        i = 2
+        while i < len(sys.argv):
+            if sys.argv[i] == "--days" and i + 1 < len(sys.argv):
+                days_to_keep = int(sys.argv[i + 1])
+                i += 2
+            else:
+                i += 1
+        
+        processor = LLMDocumentProcessor()
+        processor.metadata_manager.cleanup_old_metadata(days_to_keep)
         sys.exit(0)
     
     processor = LLMDocumentProcessor()
@@ -461,6 +719,7 @@ def main():
         # Parse optional arguments
         output_file = None
         debug = False
+        enable_reasoning = None  # None means use default setting
         
         i = 3
         while i < len(sys.argv):
@@ -470,6 +729,12 @@ def main():
             elif sys.argv[i] == "--debug":
                 debug = True
                 i += 1
+            elif sys.argv[i] == "--reasoning":
+                enable_reasoning = True
+                i += 1
+            elif sys.argv[i] == "--no-reasoning":
+                enable_reasoning = False
+                i += 1
             else:
                 # Treat as positional output file (backward compatibility)
                 if output_file is None:
@@ -477,7 +742,7 @@ def main():
                 i += 1
         
         processor = LLMDocumentProcessor()
-        results = processor.check_citations(docx_path, output_file, debug)
+        results = processor.check_citations(docx_path, output_file, debug, enable_reasoning)
         
         if results and processor.citation_checker:
             processor.citation_checker.print_results_summary(results)
@@ -494,6 +759,7 @@ def main():
         debug = False
         batch_size = 5
         context_overlap = 2
+        enable_reasoning = None  # None means use default setting
         
         i = 3
         while i < len(sys.argv):
@@ -509,6 +775,12 @@ def main():
             elif sys.argv[i] == "--context-overlap" and i + 1 < len(sys.argv):
                 context_overlap = int(sys.argv[i + 1])
                 i += 2
+            elif sys.argv[i] == "--reasoning":
+                enable_reasoning = True
+                i += 1
+            elif sys.argv[i] == "--no-reasoning":
+                enable_reasoning = False
+                i += 1
             else:
                 # Treat as positional output file (backward compatibility)
                 if output_file is None:
@@ -516,24 +788,14 @@ def main():
                 i += 1
         
         processor = LLMDocumentProcessor()
-        results = processor.check_citations_batched(docx_path, output_file, debug, batch_size, context_overlap)
+        results = processor.check_citations_batched(docx_path, output_file, debug, batch_size, context_overlap, enable_reasoning)
         
         if results and processor.citation_checker:
             processor.citation_checker.print_results_summary(results)
     
     elif command == "prompt-editor":
-        # Import and run the prompt editor
         try:
-            # Try to import the prompt editor
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("prompt_editor", Path(__file__).parent / "prompt_editor.py")
-            if spec and spec.loader:
-                prompt_editor_module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(prompt_editor_module)
-                PromptEditor = prompt_editor_module.PromptEditor
-            else:
-                raise ImportError("Could not load prompt_editor.py")
-            
+            from llm.prompt_editor import PromptEditor
             editor = PromptEditor()
             
             if len(sys.argv) < 3:
@@ -586,7 +848,8 @@ def main():
     
     else:
         print(f"❌ Unknown command: {command}")
-        print("Available commands: setup, test, handshake, edit, analyze, check-citations, check-citations-batched, prompt-editor")
+        print("Run without arguments to see usage information.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main() 

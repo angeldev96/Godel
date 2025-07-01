@@ -16,11 +16,19 @@ from llm.token_estimator import TokenEstimator
 from core.xml_to_anchored_txt import xml_to_anchored_txt
 from core.extract_docx_xml import extract_docx_xml
 
+# Import reasoning validator
+try:
+    from llm.reasoning_citation_validator import ReasoningCitationValidator, ReasoningEffort
+    REASONING_AVAILABLE = True
+except ImportError:
+    REASONING_AVAILABLE = False
+    print("⚠️  Reasoning validator not available. Install OpenAI SDK for reasoning support.")
+
 class LegalCitationChecker:
     """Main legal citation checker with Bluebook compliance analysis"""
     
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, 
-                 provider: Optional[LLMProvider] = None):
+                 provider: Optional[LLMProvider] = None, enable_reasoning: bool = True):
         # Use provided parameters or get from config
         if provider:
             # Use specified provider
@@ -49,6 +57,21 @@ class LegalCitationChecker:
         self.prompt_file = Path(__file__).parent.parent / "config" / "legal_citation_prompt.txt"
         self.default_prompt = self._load_default_prompt()
         
+        # Initialize reasoning validator if available and enabled
+        self.reasoning_validator = None
+        self.enable_reasoning = enable_reasoning and REASONING_AVAILABLE
+        if self.enable_reasoning:
+            try:
+                self.reasoning_validator = ReasoningCitationValidator()
+                if self.reasoning_validator.client:
+                    print("✅ Reasoning validator initialized for second-pass analysis")
+                else:
+                    print("⚠️  Reasoning validator not available (no OpenAI API key)")
+                    self.enable_reasoning = False
+            except Exception as e:
+                print(f"⚠️  Failed to initialize reasoning validator: {e}")
+                self.enable_reasoning = False
+        
     def _load_default_prompt(self) -> str:
         """Load the default legal citation prompt"""
         if self.prompt_file.exists():
@@ -65,7 +88,7 @@ class LegalCitationChecker:
         print(f"✅ API key configured for {provider.value} citation checker")
     
     def check_citations_from_docx(self, docx_path: str, output_file: Optional[str] = None, 
-                                 debug: bool = False) -> Optional[Dict[str, Any]]:
+                                 debug: bool = False, enable_reasoning: Optional[bool] = None) -> Optional[Dict[str, Any]]:
         """
         Check citations in a DOCX file
         
@@ -73,6 +96,7 @@ class LegalCitationChecker:
             docx_path: Path to DOCX file
             output_file: Optional output file for results
             debug: Enable debug output
+            enable_reasoning: Override reasoning setting for this check
             
         Returns:
             Citation analysis results
@@ -109,7 +133,7 @@ class LegalCitationChecker:
             
             # Step 4: Check citations
             print("🔍 Step 3: Checking citations...")
-            results = self.check_citations_in_text(anchored_text, debug=debug, output_file=output_file)
+            results = self.check_citations_in_text(anchored_text, debug=debug, output_file=output_file, enable_reasoning=enable_reasoning)
             
             # Step 5: Save results
             if results and output_file:
@@ -124,14 +148,16 @@ class LegalCitationChecker:
             print(f"❌ Citation checking failed: {e}")
             return None
     
-    def check_citations_in_text(self, text: str, debug: bool = False, output_file: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def check_citations_in_text(self, text: str, debug: bool = False, output_file: Optional[str] = None, 
+                               enable_reasoning: Optional[bool] = None) -> Optional[Dict[str, Any]]:
         """
-        Check citations in text with batching support
+        Check citations in text with batching support and optional reasoning validation
         
         Args:
             text: Text with anchor tokens
             debug: Enable debug output
             output_file: Optional output file for results
+            enable_reasoning: Override reasoning setting for this check
             
         Returns:
             Citation analysis results
@@ -139,6 +165,9 @@ class LegalCitationChecker:
         if not self.client:
             print("❌ No API client configured")
             return None
+        
+        # Determine if reasoning should be used
+        use_reasoning = enable_reasoning if enable_reasoning is not None else self.enable_reasoning
         
         # Analyze text size and determine if batching is needed
         analysis = self.token_estimator.analyze_text_size(text, self.default_prompt)
@@ -148,10 +177,42 @@ class LegalCitationChecker:
         
         if analysis['needs_batching']:
             print(f"📦 Text requires batching into {analysis['recommended_batches']} batches")
-            return self._check_citations_batched(text, analysis, debug, output_file)
+            first_pass_results = self._check_citations_batched(text, analysis, debug, output_file)
         else:
             print("✅ Text fits in single context window")
-            return self._check_citations_single(text, debug, output_file)
+            first_pass_results = self._check_citations_single(text, debug, output_file)
+        
+        # Apply reasoning validation if enabled and results exist
+        if use_reasoning and first_pass_results and self.reasoning_validator:
+            print("🧠 Applying reasoning-based second-pass validation...")
+            citations = first_pass_results.get('citations', [])
+            
+            if citations:
+                # Validate citations with reasoning
+                validated_citations = self.reasoning_validator.validate_citations_with_reasoning(
+                    citations, text, ReasoningEffort.MEDIUM, debug
+                )
+                
+                # Update results with validated citations
+                first_pass_results['citations'] = validated_citations
+                
+                # Update summary statistics
+                total_citations = len(validated_citations)
+                citations_with_errors = sum(1 for c in validated_citations if c.get('status') == 'Error')
+                citations_correct = total_citations - citations_with_errors
+                
+                first_pass_results['analysis_summary'].update({
+                    'total_citations_found': total_citations,
+                    'citations_with_errors': citations_with_errors,
+                    'citations_correct': citations_correct,
+                    'reasoning_validation_applied': True
+                })
+                
+                print("✅ Reasoning validation complete")
+            else:
+                print("⚠️  No citations found for reasoning validation")
+        
+        return first_pass_results
     
     def _structure_citation_results(self, citations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Structure raw citation array into proper results format"""

@@ -26,7 +26,7 @@ class Config:
         # Default models for each provider
         self.default_models = {
             LLMProvider.LLAMA: "llama3.2-3b",
-            LLMProvider.OPENAI: "gpt-3.5-turbo"  # ChatGPT 3.5 Turbo
+            LLMProvider.OPENAI: "gpt-4o-2024-08-06"  # GPT-4o with 128K context
         }
         
         # Global model selection (if set, overrides task-specific models)
@@ -36,16 +36,16 @@ class Config:
         # Task-specific model configurations
         self.task_models = {
             "citation_checking": {
-                "provider": LLMProvider.LLAMA,
-                "model": "llama3.2-3b"
+                "provider": LLMProvider.OPENAI,
+                "model": "gpt-4o-2024-08-06"
             },
             "citation_validation": {
                 "provider": LLMProvider.OPENAI,
-                "model": "gpt-3.5-turbo"  # ChatGPT 3.5 Turbo
+                "model": "gpt-4o-2024-08-06"
             },
             "document_analysis": {
-                "provider": LLMProvider.LLAMA,
-                "model": "llama3.2-3b"
+                "provider": LLMProvider.OPENAI,
+                "model": "gpt-4o-2024-08-06"
             }
         }
     
