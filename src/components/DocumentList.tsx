@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +20,7 @@ interface Document {
   id: string;
   filename: string;
   original_filename: string;
+  file_path: string;
   file_size: number | null;
   upload_date: string;
   processing_status: string;
