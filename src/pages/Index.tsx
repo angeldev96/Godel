@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Auth from '@/components/Auth';
 import Dashboard from '@/components/Dashboard';
 
-const Index = () => {
+function Index() {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -18,6 +18,6 @@ const Index = () => {
   }
 
   return user ? <Dashboard /> : <Auth />;
-};
+}
 
 export default Index;
