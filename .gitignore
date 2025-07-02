@@ -23,3 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 backend/godelenv/
+backend\.env
+.cursor
+
+# Environment variables
+# Ignore all .env files in any directory
+**/.env*
+
+# Python virtual environment
+backend/venv/
+
+# SPCTR pipeline metadata
+SPCTR/SPCTRLLMPipLne/.metadata/
