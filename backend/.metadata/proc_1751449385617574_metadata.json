@@ -1,0 +1,45 @@
+{
+  "processing_id": "proc_1751449385617574",
+  "original_file": {
+    "path": "C:\\Users\\Angel\\AppData\\Local\\Temp\\doc_processing\\52419f8f-0add-4991-8942-42d6d7f35958.docx",
+    "name": "52419f8f-0add-4991-8942-42d6d7f35958.docx",
+    "size_bytes": 29152,
+    "hash": "5e24d789edd8b239a10ee6f29ae1c392c3f72f653a4e81b3486916e2d58805ff",
+    "last_modified": "2025-07-02T03:43:05.615576"
+  },
+  "processing": {
+    "start_time": "2025-07-02T03:43:05.669823",
+    "timestamp": 1751449385.6698234,
+    "working_directory": "C:\\Users\\Angel\\Desktop\\Godel\\backend",
+    "end_time": "2025-07-02T03:43:27.130456",
+    "duration_seconds": 21.460633516311646
+  },
+  "pipeline_steps": [
+    {
+      "name": "citation_checking_start",
+      "timestamp": "2025-07-02T03:43:05.670696",
+      "input_file": "C:\\Users\\Angel\\AppData\\Local\\Temp\\doc_processing\\52419f8f-0add-4991-8942-42d6d7f35958.docx",
+      "output_file": null,
+      "status": "started",
+      "error": null
+    },
+    {
+      "name": "citation_checking_complete",
+      "timestamp": "2025-07-02T03:43:27.126458",
+      "input_file": "C:\\Users\\Angel\\AppData\\Local\\Temp\\doc_processing\\52419f8f-0add-4991-8942-42d6d7f35958.docx",
+      "output_file": "C:\\Users\\Angel\\AppData\\Local\\Temp\\doc_processing\\52419f8f-0add-4991-8942-42d6d7f35958_citations_proc_1751449385617574_20250702_034305.json",
+      "status": "completed",
+      "error": null
+    }
+  ],
+  "output_files": [
+    {
+      "path": "C:\\Users\\Angel\\AppData\\Local\\Temp\\doc_processing\\52419f8f-0add-4991-8942-42d6d7f35958_citations_proc_1751449385617574_20250702_034305.json",
+      "name": "52419f8f-0add-4991-8942-42d6d7f35958_citations_proc_1751449385617574_20250702_034305.json",
+      "size_bytes": 5321,
+      "hash": "89d1c980aa36717818b1e88f1af8b6a5c02b48749a797a80dfc73d4632bcced3",
+      "created": "2025-07-02T03:43:27.125456"
+    }
+  ],
+  "status": "completed"
+}

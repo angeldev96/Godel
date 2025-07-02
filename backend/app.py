@@ -12,7 +12,7 @@ import uuid
 load_dotenv()
 
 # Añadir la ruta de SPCTR al path para poder importar los módulos
-sys.path.append(str(Path(__file__).parent.parent / 'SPCTR' / 'SPCTRLLMPipLne'))
+sys.path.append(str(Path(__file__).parent / 'SPCTR' / 'SPCTRLLMPipLne'))
 
 from llm.llm_document_processor import LLMDocumentProcessor
 
