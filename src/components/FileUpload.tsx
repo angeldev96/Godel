@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
@@ -7,9 +6,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, FileText, X, CheckCircle } from 'lucide-react';
+import { Json } from '@supabase/supabase-js';
+
+interface Document {
+  id: string;
+  filename: string;
+  original_filename: string;
+  file_path: string;
+  file_size: number | null;
+  upload_date: string;
+  processing_status: string;
+  processed_at: string | null;
+  processing_results: Json | null;
+  user_id: string;
+}
 
 interface FileUploadProps {
-  onDocumentUploaded: (document: any) => void;
+  onDocumentUploaded: (document: Document) => void;
 }
 
 export function FileUpload({ onDocumentUploaded }: FileUploadProps) {
@@ -90,16 +103,51 @@ export function FileUpload({ onDocumentUploaded }: FileUploadProps) {
 
       if (docError) throw docError;
 
+      // Notify parent component *before* starting backend processing
+      onDocumentUploaded(docData);
+      
+      // Trigger backend processing
+      console.log('Triggering backend processing for:', docData.file_path);
+      fetch('http://localhost:5001/process-document', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ file_path: docData.file_path }),
+      })
+      .then(async response => {
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Backend processing failed');
+        }
+        return response.json();
+      })
+      .then(processingResults => {
+        console.log('Backend processing successful:', processingResults);
+        // Here you would typically update the document's status and results
+        // in your Supabase 'documents' table.
+        // For now, we'll just show a success toast.
+        toast({
+          title: "Processing Complete",
+          description: "The document has been successfully processed by the backend.",
+        });
+      })
+      .catch(error => {
+        console.error('Backend processing error:', error);
+        toast({
+          title: "Processing Error",
+          description: `Failed to process document: ${error.message}`,
+          variant: "destructive",
+        });
+      });
+
       // Clear the form
       setSelectedFile(null);
       setUploadProgress(0);
 
-      // Notify parent component
-      onDocumentUploaded(docData);
-
       toast({
         title: "Upload successful",
-        description: "Your document has been uploaded and queued for processing.",
+        description: "Your document has been uploaded and is queued for processing.",
       });
 
     } catch (error) {
